@@ -10,30 +10,31 @@ export async function register(formData: FormData) {
   const password = formData.get('password') as string
   const confirmPassword = formData.get('confirmPassword') as string
   const role = formData.get('role') as string
+  const fullName = formData.get('full_name') as string
 
-  if (!nik || !password || !role) {
-      return redirect('/register?error=All fields are required')
+  if (!nik || !password || !role || !fullName) {
+      return redirect('/register?error=Semua field wajib diisi')
   }
   
-  if (nik.length !== 16 || !/^\d+$/.test(nik)) {
-      return redirect('/register?error=NIK harus tepat 16 digit angka')
+  if (nik.length !== 10 || !/^\d+$/.test(nik)) {
+      return redirect('/register?error=NIK harus tepat 10 digit angka')
   }
   
   if (password !== confirmPassword) {
       return redirect('/register?error=Password tidak cocok')
   }
 
-  // Supabase validasi email kadang menolak domain non-standar.
-  // Gunakan @alfamidi.com agar validasinya lolos.
   const email = `${nik}@alfamidi.com`
 
-  const { error } = await supabase.auth.signUp({
+  const { data: signUpData, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
         nik,
         role,
+        full_name: fullName,
+        status: 'pending',  // semua user baru = pending, menunggu verifikasi superadmin
       }
     }
   })
@@ -42,5 +43,16 @@ export async function register(formData: FormData) {
     return redirect('/register?error=' + encodeURIComponent(error.message))
   }
 
-  return redirect('/login?message=Registration successful! Please login.')
+  // Juga simpan ke tabel profiles dengan status pending
+  if (signUpData.user) {
+    await supabase.from('profiles').upsert({
+      id: signUpData.user.id,
+      nik,
+      role,
+      full_name: fullName,
+      status: 'pending',
+    })
+  }
+
+  return redirect('/login?message=Registrasi berhasil! Silakan login. Akun Anda akan diaktifkan setelah verifikasi.')
 }

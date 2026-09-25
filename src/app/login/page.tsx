@@ -41,11 +41,11 @@ function LoginForm() {
             type="text"
             name="nik"
             required
-            pattern="[0-9]{16}"
-            maxLength={16}
-            minLength={16}
-            title="NIK harus tepat 16 digit angka"
-            placeholder="3215031903040002"
+            pattern="[0-9]{10}"
+            maxLength={10}
+            minLength={10}
+            title="NIK harus tepat 10 digit angka"
+            placeholder="1234567890"
             className="w-full border border-blue-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#0c539a] text-gray-800 placeholder-blue-300"
             onInput={(e) => {
               e.currentTarget.value = e.currentTarget.value.replace(/[^0-9]/g, '');

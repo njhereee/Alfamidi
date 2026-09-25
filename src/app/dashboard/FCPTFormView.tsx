@@ -92,30 +92,90 @@ const formDataTemplate = [
 ]
 
 export default function FCPTFormView({ store, onBack }: { store: any, onBack: () => void }) {
-  const [answers, setAnswers] = useState<any>({})
+  const [answers, setAnswers] = useState<Record<string, { status?: string; nilai?: number; keterangan?: string; fotoFile?: File; fotoName?: string; fotoPreview?: string }>>({})
   const [currentStep, setCurrentStep] = useState(0)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // ─── Upload 1 foto ke Supabase Storage ─────────────────────────────────────
+  const uploadFoto = async (supabase: any, itemId: string, file: File, storeKode: string): Promise<string | null> => {
+    const ext = file.name.split('.').pop()
+    const path = `fcpt/${storeKode}/${itemId}_${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('fcpt-photos').upload(path, file, { upsert: true })
+    if (error) { console.error('Upload foto error:', error); return null }
+    const { data } = supabase.storage.from('fcpt-photos').getPublicUrl(path)
+    return data?.publicUrl ?? null
+  }
+
+  // ─── Submit form ke database ────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    setIsSubmitting(true)
+    try {
+      const { createClient } = await import('@/utils/supabase/client')
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      // 1. Buat submission record
+      const { data: submission, error: subErr } = await supabase
+        .from('fcpt_submissions')
+        .insert({ store_kode: store?.kode, submitted_by: user?.id })
+        .select('id')
+        .single()
+      if (subErr) throw subErr
+
+      const submissionId = submission.id
+
+      // 2. Upload foto & simpan detail per item
+      const itemInserts = []
+      for (const [itemId, answer] of Object.entries(answers)) {
+        let fotoUrl: string | null = null
+        if (answer.fotoFile) {
+          fotoUrl = await uploadFoto(supabase, itemId, answer.fotoFile, store?.kode)
+        }
+        itemInserts.push({
+          submission_id: submissionId,
+          item_id: itemId,
+          kondisi: answer.status ?? null,
+          nilai: answer.nilai ?? null,
+          keterangan: answer.keterangan ?? null,
+          foto_url: fotoUrl,
+        })
+      }
+
+      if (itemInserts.length > 0) {
+        const { error: detailErr } = await supabase.from('fcpt_item_details').insert(itemInserts)
+        if (detailErr) throw detailErr
+      }
+
+      alert('Form berhasil dikirim!')
+      onBack()
+    } catch (err: any) {
+      console.error(err)
+      alert('Gagal mengirim form: ' + (err.message || JSON.stringify(err)))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // ─── Handlers ───────────────────────────────────────────────────────────────
   const handleRadioChange = (itemId: string, value: string) => {
-    setAnswers({
-      ...answers,
-      [itemId]: { ...answers[itemId], status: value }
-    })
+    let defaultNilai = 100
+    if (value === 'RUSAK MASIH DAPAT DIGUNAKAN') defaultNilai = 70
+    if (value === 'RUSAK TIDAK DAPAT DIGUNAKAN') defaultNilai = 0
+    setAnswers(prev => ({ ...prev, [itemId]: { ...prev[itemId], status: value, nilai: defaultNilai } }))
+  }
+
+  const handleNilaiChange = (itemId: string, value: number) => {
+    setAnswers(prev => ({ ...prev, [itemId]: { ...prev[itemId], nilai: value } }))
   }
 
   const handleKeteranganChange = (itemId: string, value: string) => {
-    setAnswers({
-      ...answers,
-      [itemId]: { ...answers[itemId], keterangan: value }
-    })
+    setAnswers(prev => ({ ...prev, [itemId]: { ...prev[itemId], keterangan: value } }))
   }
 
   const handleFileChange = (itemId: string, file: File | null) => {
-    if (file) {
-      setAnswers({
-        ...answers,
-        [itemId]: { ...answers[itemId], fotoName: file.name }
-      })
-    }
+    if (!file) return
+    const preview = URL.createObjectURL(file)
+    setAnswers(prev => ({ ...prev, [itemId]: { ...prev[itemId], fotoFile: file, fotoName: file.name, fotoPreview: preview } }))
   }
 
   const section = formDataTemplate[currentStep]
@@ -185,6 +245,52 @@ export default function FCPTFormView({ store, onBack }: { store: any, onBack: ()
                   ))}
                 </div>
 
+                <AnimatePresence>
+                  {status && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="mb-6 bg-blue-50/50 p-5 rounded-xl border border-blue-100"
+                    >
+                      <div className="flex justify-between items-center mb-3">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Nilai Kondisi</label>
+                        <span className="text-xl font-black text-[#0c539a]">{currentAnswer.nilai || 0}</span>
+                      </div>
+                      
+                      {status === 'BAIK' && (
+                        <input 
+                          type="range" min="80" max="100" step="5" 
+                          value={currentAnswer.nilai || 100}
+                          onChange={(e) => handleNilaiChange(item.id, parseInt(e.target.value))}
+                          className="w-full accent-[#0c539a] cursor-pointer"
+                        />
+                      )}
+                      
+                      {status === 'RUSAK MASIH DAPAT DIGUNAKAN' && (
+                        <input 
+                          type="range" min="50" max="70" step="5" 
+                          value={currentAnswer.nilai || 70}
+                          onChange={(e) => handleNilaiChange(item.id, parseInt(e.target.value))}
+                          className="w-full accent-amber-500 cursor-pointer"
+                        />
+                      )}
+                      
+                      {status === 'RUSAK TIDAK DAPAT DIGUNAKAN' && (
+                        <input 
+                          type="range" min="0" max="50" step="5" 
+                          value={currentAnswer.nilai || 0}
+                          onChange={(e) => handleNilaiChange(item.id, parseInt(e.target.value))}
+                          className="w-full accent-red-500 cursor-pointer"
+                        />
+                      )}
+                      <div className="flex justify-between text-[10px] text-gray-400 font-bold mt-2">
+                        <span>Min: {status === 'BAIK' ? 80 : status === 'RUSAK MASIH DAPAT DIGUNAKAN' ? 50 : 0}</span>
+                        <span>Max: {status === 'BAIK' ? 100 : status === 'RUSAK MASIH DAPAT DIGUNAKAN' ? 70 : 50}</span>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 <div className="space-y-4 pt-2 border-t border-gray-100 mt-2">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Keterangan / Estimasi <span className="text-red-500">*</span></label>
@@ -200,15 +306,19 @@ export default function FCPTFormView({ store, onBack }: { store: any, onBack: ()
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Upload Foto <span className="text-red-500">*</span></label>
                     <label className="w-full border-2 border-dashed border-gray-300 bg-gray-50/50 rounded-xl p-4 flex flex-col justify-center items-center gap-2 hover:bg-gray-100 transition-colors cursor-pointer group">
-                      {currentAnswer.fotoName ? (
-                        <div className="flex items-center gap-2 text-emerald-600">
-                          <CheckCircle size={20} />
-                          <span className="font-semibold text-sm">{currentAnswer.fotoName}</span>
+                      {currentAnswer.fotoPreview ? (
+                        <div className="w-full">
+                          <img src={currentAnswer.fotoPreview} alt="Preview" className="w-full max-h-48 object-cover rounded-lg mb-2" />
+                          <div className="flex items-center gap-2 text-emerald-600 justify-center">
+                            <CheckCircle size={16} />
+                            <span className="text-xs font-semibold truncate">{currentAnswer.fotoName}</span>
+                          </div>
                         </div>
                       ) : (
                         <>
                           <Camera size={24} className="text-gray-400 group-hover:text-red-500 transition-colors" />
                           <span className="text-gray-500 text-sm font-medium">Klik untuk upload foto</span>
+                          <span className="text-xs text-gray-400">JPG, PNG, HEIC — maks 10MB</span>
                         </>
                       )}
                       <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(item.id, e.target.files?.[0] || null)} />
@@ -220,7 +330,6 @@ export default function FCPTFormView({ store, onBack }: { store: any, onBack: ()
           })}
         </div>
       </motion.div>
-
       <div className="flex justify-between items-center gap-4 mt-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
         <button 
           onClick={() => setCurrentStep(Math.max(0, currentStep - 1))} 
@@ -238,8 +347,12 @@ export default function FCPTFormView({ store, onBack }: { store: any, onBack: ()
             Selanjutnya
           </button>
         ) : (
-          <button className="px-8 py-3 bg-[#0c539a] text-white font-bold rounded-xl hover:bg-blue-800 transition-colors shadow-sm">
-            Kirim Form
+          <button 
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="px-8 py-3 bg-[#0c539a] text-white font-bold rounded-xl hover:bg-blue-800 transition-colors shadow-sm disabled:opacity-50"
+          >
+            {isSubmitting ? 'Mengirim...' : 'Kirim Form'}
           </button>
         )}
       </div>

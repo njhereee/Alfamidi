@@ -1,36 +1,76 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Search, SlidersHorizontal, Settings2, FileText, Snowflake, Zap } from 'lucide-react'
 
-// Dummy Data Toko
-const dummyStores = [
-  { id: 1, kode: 'SG1Z', cabang: 'Banjarmasin', nama: 'PIERRE TENDEAN BJM', pic: 'Budi Santoso', status: '1/1', date: '10/04/2026 09:38:13' },
-  { id: 2, kode: 'AB12', cabang: 'Bitung', nama: 'UBM TOWER', pic: 'Siti Aminah', status: '0/1', date: '-' },
-  { id: 3, kode: 'AK1N', cabang: 'Medan', nama: 'KAPITU MEDAN', pic: 'Andi Saputra', status: '0/1', date: '-' },
-  { id: 4, kode: 'SK16', cabang: 'Manado', nama: 'SEA MANADO', pic: 'Rina Marlina', status: '1/1', date: '11/04/2026 10:15:00' },
-  { id: 5, kode: 'SQ2T', cabang: 'Bekasi', nama: 'BALANPULANG', pic: 'Rudi Hermawan', status: '1/1', date: '12/04/2026 08:20:11' },
-  { id: 6, kode: 'SC2F', cabang: 'Tangerang', nama: 'RAYA PESANTREN', pic: 'Doni Tata', status: '0/1', date: '-' },
-  { id: 7, kode: 'SS1I', cabang: 'Makassar', nama: 'POB UNDAYAN', pic: 'Hendra Setiawan', status: '1/1', date: '13/04/2026 14:05:22' },
-  { id: 8, kode: 'SD3X', cabang: 'Ambon', nama: 'PASAR BARU', pic: 'Lina Jubaedah', status: '0/1', date: '-' },
-]
+type Store = {
+  id: string
+  kode: string
+  nama: string
+  branch: string
+  nama_bmt: string
+  submitted_at?: string
+  is_done?: boolean
+}
 
 export default function ChecklistDetailView({ checklist, onStoreClick }: { checklist: any, onStoreClick: (store: any, isDone: boolean) => void }) {
+  const [stores, setStores] = useState<Store[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedCabang, setSelectedCabang] = useState('')
 
-  const uniqueCabang = Array.from(new Set(dummyStores.map(s => s.cabang)))
+  useEffect(() => {
+    const fetchStores = async () => {
+      try {
+        const { createClient } = await import('@/utils/supabase/client')
+        const supabase = createClient()
 
-  const filteredStores = dummyStores.filter(store => {
-    const matchSearch = store.nama.toLowerCase().includes(search.toLowerCase()) || 
+        // Ambil semua stores
+        const { data: storesData, error } = await supabase
+          .from('stores')
+          .select('id, kode, nama, branch, nama_bmt')
+          .order('branch', { ascending: true })
+
+        if (error) throw error
+
+        // Ambil submission yang sudah ada untuk cek status done
+        const { data: submissions } = await supabase
+          .from('fcpt_submissions')
+          .select('store_kode, submitted_at')
+
+        const doneMap: Record<string, string> = {}
+        submissions?.forEach(s => {
+          doneMap[s.store_kode] = s.submitted_at
+        })
+
+        const merged = (storesData || []).map(s => ({
+          ...s,
+          submitted_at: doneMap[s.kode] || null,
+          is_done: !!doneMap[s.kode],
+        }))
+
+        setStores(merged)
+      } catch (err) {
+        console.error('Gagal fetch stores:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchStores()
+  }, [])
+
+  const uniqueCabang = Array.from(new Set(stores.map(s => s.branch))).sort()
+
+  const filteredStores = stores.filter(store => {
+    const matchSearch = store.nama.toLowerCase().includes(search.toLowerCase()) ||
                         store.kode.toLowerCase().includes(search.toLowerCase()) ||
-                        store.cabang.toLowerCase().includes(search.toLowerCase())
-    const matchCabang = selectedCabang === '' || store.cabang === selectedCabang
+                        store.branch.toLowerCase().includes(search.toLowerCase()) ||
+                        store.nama_bmt?.toLowerCase().includes(search.toLowerCase())
+    const matchCabang = selectedCabang === '' || store.branch === selectedCabang
     return matchSearch && matchCabang
   })
 
-  // Mengambil icon berdasarkan judul checklist (karena icon aslinya SVG/Image)
   const renderIcon = () => {
     const title = checklist?.title?.toLowerCase() || ''
     if (title.includes('fcpt')) return <Settings2 size={16} />
@@ -38,6 +78,12 @@ export default function ChecklistDetailView({ checklist, onStoreClick }: { check
     if (title.includes('genset')) return <Zap size={16} />
     return <FileText size={16} />
   }
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-24">
+      <div className="animate-spin w-8 h-8 border-4 border-[#cc1e2c] border-t-transparent rounded-full" />
+    </div>
+  )
 
   return (
     <motion.div 
@@ -72,25 +118,31 @@ export default function ChecklistDetailView({ checklist, onStoreClick }: { check
         </div>
       </div>
 
+      <p className="text-sm text-gray-400 font-medium">{filteredStores.length} toko ditemukan</p>
+
       {/* Grid of Store Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredStores.map(store => {
-          const isDone = store.status === '1/1'
+          const isDone = !!store.is_done
+          // Format tanggal submitted_at
+          const dateLabel = store.submitted_at
+            ? new Date(store.submitted_at).toLocaleDateString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+            : 'Belum dicek'
 
           return (
             <motion.div 
               key={store.id}
-              whileHover={{ y: -4, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' }}
+              whileHover={{ y: -4, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }}
               onClick={() => onStoreClick(store, isDone)}
               className={`rounded-2xl border ${isDone ? 'border-blue-200 bg-blue-50/50' : 'border-red-200 bg-red-50/50'} overflow-hidden transition-all duration-300 cursor-pointer flex flex-col shadow-sm`}
             >
               <div className="p-5 flex-1">
                 <div className="flex justify-between items-start mb-3">
                   <span className="font-bold text-gray-800 text-lg tracking-tight">{store.kode}</span>
-                  <span className="text-sm font-semibold text-gray-500 bg-white px-3 py-1 rounded-full shadow-sm border border-gray-100">{store.cabang}</span>
+                  <span className="text-sm font-semibold text-gray-500 bg-white px-3 py-1 rounded-full shadow-sm border border-gray-100">{store.branch}</span>
                 </div>
                 <h3 className="text-gray-700 font-bold mb-1 truncate">{store.nama}</h3>
-                <p className="text-gray-500 text-sm">{store.pic}</p>
+                <p className="text-gray-500 text-sm">{store.nama_bmt}</p>
               </div>
 
               {/* Bottom Pill */}
@@ -102,10 +154,10 @@ export default function ChecklistDetailView({ checklist, onStoreClick }: { check
                 
                 <div className="flex items-center gap-4">
                   <span className={`text-xs font-medium ${isDone ? 'text-blue-600' : 'text-red-500'}`}>
-                    {store.date !== '-' ? store.date : 'Belum dicek'}
+                    {dateLabel}
                   </span>
                   <div className={`px-3 py-1 rounded-full text-xs font-black text-white shadow-sm ${isDone ? 'bg-[#0c539a]' : 'bg-[#cc1e2c]'}`}>
-                    {store.status}
+                    {isDone ? '1/1' : '0/1'}
                   </div>
                 </div>
               </div>
@@ -114,9 +166,9 @@ export default function ChecklistDetailView({ checklist, onStoreClick }: { check
         })}
       </div>
       
-      {filteredStores.length === 0 && (
+      {filteredStores.length === 0 && !loading && (
         <div className="text-center py-20 text-gray-500">
-          Tidak ada toko yang cocok dengan pencarian "{search}".
+          Tidak ada toko yang cocok dengan pencarian &ldquo;{search}&rdquo;.
         </div>
       )}
     </motion.div>

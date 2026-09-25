@@ -10,7 +10,8 @@ import {
   EyeOff,
   Search,
   File,
-  Bell
+  Bell,
+  UserCheck
 } from 'lucide-react'
 import NextImage from 'next/image'
 import RekapDetailView from "./RekapDetailView"
@@ -34,7 +35,51 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
   const [selectedRekapItem, setSelectedRekapItem] = useState<any>(null)
   const [selectedStore, setSelectedStore] = useState<any>(null)
   const [isNotifOpen, setIsNotifOpen] = useState(false)
-  
+  const [pendingUsers, setPendingUsers] = useState<any[]>([])
+  const [sahkanTarget, setSahkanTarget] = useState<any>(null)
+  const [sahkanRole, setSahkanRole] = useState('')
+  const [isSahkan, setIsSahkan] = useState(false)
+
+  // Fetch pending users dari Supabase
+  useEffect(() => {
+    const fetchPending = async () => {
+      const { createClient } = await import('@/utils/supabase/client')
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, nik, role, full_name, created_at')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+      if (error) console.error('[HODashboard] Fetch pending error:', error.message)
+      else console.log('[HODashboard] Pending users:', data?.length ?? 0, data)
+      if (data) setPendingUsers(data)
+    }
+    fetchPending()
+  }, [])
+
+  const handleSahkanRole = async () => {
+    if (!sahkanTarget || !sahkanRole) return
+    setIsSahkan(true)
+    const { createClient } = await import('@/utils/supabase/client')
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role: sahkanRole, status: 'active' })
+      .eq('id', sahkanTarget.id)
+      
+    if (error) {
+      console.error('Update role error:', error)
+      alert('Gagal mengupdate role. Pastikan Policy RLS di Supabase mengizinkan update.')
+      setIsSahkan(false)
+      return
+    }
+
+    setPendingUsers(prev => prev.filter(u => u.id !== sahkanTarget.id))
+    setSahkanTarget(null)
+    setSahkanRole('')
+    setIsSahkan(false)
+  }
+
   // States untuk form profil
   const [profileImage, setProfileImage] = useState<string | null>(metadata?.avatar_url || null)
   const [fileToUpload, setFileToUpload] = useState<File | null>(null)
@@ -85,6 +130,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
     { name: 'Home', icon: Home },
     { name: 'Modul', icon: BookOpen },
     { name: 'Rekap', icon: FileSpreadsheet },
+    { name: 'Verifikasi', icon: UserCheck },
   ]
 
   const handleSignOut = async () => {
@@ -416,14 +462,21 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
               <button 
                 key={tab.name}
                 onClick={() => { setActiveTab(tab.name); setCurrentView('dashboard') }} 
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
                   isActive 
                     ? 'bg-red-50 text-[#cc1e2c] font-bold shadow-sm border border-red-100' 
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium'
                 }`}
               >
-                <tab.icon size={20} className={isActive ? 'text-[#cc1e2c]' : 'text-gray-400'} />
-                <span>{tab.name}</span>
+                <div className="flex items-center gap-3">
+                  <tab.icon size={20} className={isActive ? 'text-[#cc1e2c]' : 'text-gray-400'} />
+                  <span>{tab.name}</span>
+                </div>
+                {tab.name === 'Verifikasi' && pendingUsers.length > 0 && (
+                  <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {pendingUsers.length}
+                  </span>
+                )}
               </button>
             )
           })}
@@ -475,7 +528,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
                 className="p-3 bg-gray-50 text-gray-600 rounded-full hover:bg-gray-100 transition relative"
               >
                 <Bell size={20} />
-                <span className="absolute top-2 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+                <span className="absolute top-2 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
               </button>
 
               <AnimatePresence>
@@ -507,8 +560,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
                     </div>
                   </motion.div>
                 )}
-
-          </AnimatePresence>
+              </AnimatePresence>
             </div>
 
             {currentView === 'dashboard' && (activeTab === 'Home' || activeTab === 'Modul') && (
@@ -536,6 +588,49 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
                 exit={{ opacity: 0, y: -20 }}
                 className="max-w-6xl mx-auto"
               >
+                {activeTab === 'Verifikasi' && (
+                  <div className="mb-8">
+                    <h2 className="text-2xl font-bold text-gray-800 mb-6">Verifikasi Akun</h2>
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                      {pendingUsers.length === 0 ? (
+                        <div className="text-center py-12">
+                          <UserCheck size={48} className="mx-auto text-gray-300 mb-4" />
+                          <p className="text-gray-500 font-medium text-lg">Tidak ada akun yang menunggu verifikasi</p>
+                          <p className="text-gray-400 mt-1">Semua akun sudah diverifikasi.</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {pendingUsers.map((u) => (
+                            <div key={u.id} className="border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md transition bg-gray-50/50 relative overflow-hidden">
+                              <div className="absolute top-0 left-0 w-1 h-full bg-amber-400"></div>
+                              <div className="flex items-start justify-between mb-4">
+                                <div>
+                                  <h3 className="font-bold text-gray-800 text-lg">{u.full_name || 'Tanpa Nama'}</h3>
+                                  <p className="text-sm text-gray-500 mt-1">NIK: <span className="font-mono font-bold text-gray-700">{u.nik}</span></p>
+                                </div>
+                                <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2.5 py-1 rounded-full border border-amber-200">
+                                  PENDING
+                                </span>
+                              </div>
+                              <div className="mb-5 p-3 bg-white rounded-lg border border-gray-100">
+                                <p className="text-xs text-gray-500 mb-1">Role Diajukan</p>
+                                <p className="font-bold text-[#0c539a] capitalize">{u.role?.replace(/_/g, ' ')}</p>
+                              </div>
+                              <button
+                                onClick={() => { setSahkanTarget(u); setSahkanRole(u.role || '') }}
+                                className="w-full bg-[#0c539a] hover:bg-blue-800 text-white font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2"
+                              >
+                                <UserCheck size={18} />
+                                Sahkan Role
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {activeTab === 'Modul' && (
                   <div className="mb-8">
                     <div className="relative max-w-md">
@@ -824,6 +919,73 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
           </AnimatePresence>
         </main>
       </div>
+
+      {/* ── Modal Sahkan Role ───────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {sahkanTarget && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4"
+            onClick={(e) => { if (e.target === e.currentTarget) setSahkanTarget(null) }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6"
+            >
+              <h3 className="font-bold text-gray-800 text-lg mb-1">Sahkan Role</h3>
+              <p className="text-gray-500 text-sm mb-4">Tentukan role untuk karyawan berikut:</p>
+
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-5 space-y-1.5">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Nama</span>
+                  <span className="font-bold text-gray-800">{sahkanTarget.full_name || '-'}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">NIK</span>
+                  <span className="font-mono font-bold text-gray-800">{sahkanTarget.nik}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Role Diajukan</span>
+                  <span className="font-bold text-[#0c539a]">{sahkanTarget.role?.replace(/_/g, ' ')}</span>
+                </div>
+              </div>
+
+              <label className="block text-sm font-bold text-gray-700 mb-1.5">Tetapkan Role</label>
+              <select
+                value={sahkanRole}
+                onChange={(e) => setSahkanRole(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 bg-gray-50 focus:ring-2 focus:ring-[#0c539a] outline-none mb-5"
+              >
+                <option value="manager_cabang">Manager Cabang</option>
+                <option value="koordinator_cabang">Koordinator Cabang</option>
+                <option value="bmt">BMT</option>
+                <option value="estimator">Estimator</option>
+                <option value="admin">Admin</option>
+              </select>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setSahkanTarget(null)}
+                  className="flex-1 py-2.5 border border-gray-200 rounded-xl text-gray-600 font-bold text-sm hover:bg-gray-50 transition"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleSahkanRole}
+                  disabled={isSahkan}
+                  className="flex-1 py-2.5 bg-[#0c539a] hover:bg-blue-800 text-white font-bold text-sm rounded-xl transition disabled:opacity-50"
+                >
+                  {isSahkan ? 'Menyimpan...' : 'Sahkan'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
