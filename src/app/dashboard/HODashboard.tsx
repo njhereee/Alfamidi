@@ -50,6 +50,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
         .select('id, nik, role, full_name, created_at')
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
+        .select()
       if (error) console.error('[HODashboard] Fetch pending error:', error.message)
       else console.log('[HODashboard] Pending users:', data?.length ?? 0, data)
       if (data) setPendingUsers(data)
@@ -66,6 +67,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
       .from('profiles')
       .update({ role: sahkanRole, status: 'active' })
       .eq('id', sahkanTarget.id)
+      .select()
       
     if (error) {
       console.error('Update role error:', error)
@@ -394,7 +396,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
           avatar_url: avatarUrl,
           jabatan: jabatan,
           cabang: cabang,
-          role: 'ho'
+          role: 'superadmin'
         })
         
       if (profileError) {

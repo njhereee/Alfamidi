@@ -1,151 +1,130 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, ChevronUp, ImageIcon } from 'lucide-react'
+import { ChevronDown, ChevronUp, Image as ImageIcon, ArrowLeft } from 'lucide-react'
 
-// ─── Dummy foto placeholder (unsplash CDN) ────────────────────────────────────
-const PHOTO_URLS = [
-  'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400&q=80',
-  'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80',
-  'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400&q=80',
-  'https://images.unsplash.com/photo-1590856029826-c7a73142bbf1?w=400&q=80',
-  'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&q=80',
-]
-
-type Status = 'Baik' | 'Rusak Sebagian' | 'Rusak Total'
-
-interface SubItem {
-  code: string
-  label: string
-  status: Status
-  keterangan: string
-  photo: string
-}
-
-interface Category {
-  id: string
-  title: string
-  nilai: number
-  items: SubItem[]
-}
-
-// ─── Dummy data semua kategori ─────────────────────────────────────────────────
-const dummyCategories: Category[] = [
+// ─── TEMPLATE FORM (Untuk memetakan ID ke Label dan Kategori) ────────────────
+const formDataTemplate = [
   {
-    id: 'A', title: 'Area Parkir dan Fasade', nilai: 89,
+    category: 'A. Area Parkir dan Fasade',
     items: [
-      { code: 'A1', label: 'HALAMAN PARKIR (Rabat beton/aspal/paving, ambles, retak, gelombang)', status: 'Rusak Sebagian', keterangan: 'Terdapat retak pada 6x12m area parkir', photo: PHOTO_URLS[0] },
-      { code: 'A2', label: 'DRAINASE (Grill, saluran, tutup saluran, kelancaran aliran)', status: 'Baik', keterangan: 'Keadaan baik', photo: PHOTO_URLS[1] },
-      { code: 'A3', label: 'KANOPI (Tiang, rangka, cat, baut, korosi)', status: 'Baik', keterangan: 'Tidak ada korosi', photo: PHOTO_URLS[2] },
-      { code: 'A4', label: 'SIGNAGE (Papan nama toko, spanduk, tenant)', status: 'Baik', keterangan: 'Signage terlihat jelas', photo: PHOTO_URLS[3] },
-      { code: 'A5', label: 'FINISHING (Pengecatan Area Facade)', status: 'Rusak Sebagian', keterangan: 'Cat mengelupas di beberapa sisi', photo: PHOTO_URLS[4] },
+      { id: 'A1', label: 'HALAMAN PARKIR (Rabat beton/aspal/paving, ambles, retak, gelombang)' },
+      { id: 'A2', label: 'DRAINASE (Grill, saluran, tutup saluran, kelancaran aliran)' },
+      { id: 'A3', label: 'KANOPI (Tiang, rangka, cat, baut, korosi)' },
+      { id: 'A4', label: 'SIGNAGE (Papan nama toko, spanduk, tenant)' },
+      { id: 'A5', label: 'FINISHING (Pengecatan Area Facade)' },
     ]
   },
   {
-    id: 'B', title: 'Area Teras dan Area Sales', nilai: 91,
+    category: 'B. AREA TERAS DAN AREA SALES',
     items: [
-      { code: 'B1', label: 'STRUKTUR (Kolom, balok, sloof dan Pondasi, dinding, retak, cat)', status: 'Baik', keterangan: 'Struktur dalam kondisi baik', photo: PHOTO_URLS[0] },
-      { code: 'B2', label: 'LANTAI (Keramik, nat, level lantai)', status: 'Baik', keterangan: 'Keramik rata dan tidak retak', photo: PHOTO_URLS[1] },
-      { code: 'B3', label: 'PLAFON (Drop ceiling, gutter, finishing)', status: 'Rusak Sebagian', keterangan: 'Ada kebocoran di sudut barat', photo: PHOTO_URLS[2] },
-      { code: 'B4', label: 'FURNITURE (Meja kasir, rak tetap, partisi)', status: 'Baik', keterangan: 'Furniture dalam kondisi baik', photo: PHOTO_URLS[3] },
-      { code: 'B5', label: 'DRAIN AC (Drain, bak kontrol, kebocoran)', status: 'Baik', keterangan: 'Tidak ada kebocoran', photo: PHOTO_URLS[4] },
-      { code: 'B6', label: 'FOLDING GATE (Daun Folding Gate, Rel, Rangka, Cat)', status: 'Baik', keterangan: 'Gate berfungsi normal', photo: PHOTO_URLS[0] },
-      { code: 'B7', label: 'FINISHING (Pengecatan Kolom dinding dan Plafon)', status: 'Baik', keterangan: 'Cat rata dan bersih', photo: PHOTO_URLS[1] },
+      { id: 'B1', label: 'STRUKTUR (Kolom, balok, sloof dan Pondasi, dinding, retak, cat)' },
+      { id: 'B2', label: 'LANTAI (Keramik, nat, level lantai)' },
+      { id: 'B3', label: 'PLAFON (Drop ceiling, gutter, finishing)' },
+      { id: 'B4', label: 'FURNITURE (Meja kasir, rak tetap, partisi)' },
+      { id: 'B5', label: 'DRAIN AC (Drain, bak kontrol, kebocoran)' },
+      { id: 'B6', label: 'FOLDING GATE (Daun Folding Gate, Rel, Rangka, Cat)' },
+      { id: 'B7', label: 'FINISHING (Pengecatan Kolom dinding dan Plafon)' },
     ]
   },
   {
-    id: 'C', title: 'Area Service', nilai: 90,
+    category: 'C. AREA SERVICE',
     items: [
-      { code: 'C1', label: 'FINISHING (Pengecatan Kolom, dinding, plafon)', status: 'Baik', keterangan: 'Pengecatan dalam kondisi baik', photo: PHOTO_URLS[2] },
-      { code: 'C2', label: 'GUDANG (Janitor, tangga)', status: 'Rusak Sebagian', keterangan: 'Tangga perlu perbaikan cat', photo: PHOTO_URLS[3] },
-      { code: 'C3', label: 'Utilitas (Sarana dan Instalasi Air Bersih dan Air Kotor)', status: 'Baik', keterangan: 'Instalasi berfungsi baik', photo: PHOTO_URLS[4] },
-      { code: 'C4', label: 'LANTAI (Keramik, nat, level lantai)', status: 'Baik', keterangan: 'Lantai rata', photo: PHOTO_URLS[0] },
+      { id: 'C1', label: 'FINISHING (Pengecatan Kolom, dinding, plafon)' },
+      { id: 'C2', label: 'GUDANG (Janitor, tangga)' },
+      { id: 'C3', label: 'Utilitas (Sarana dan Instalasi Air Bersih dan Air Kotor)' },
+      { id: 'C4', label: 'LANTAI (Keramik, nat, level lantai)' },
     ]
   },
   {
-    id: 'D', title: 'KM/WC Sanitary', nilai: 94,
+    category: 'D. KM/WC SANITARY',
     items: [
-      { code: 'D1', label: 'FINISHING (Lantai, dinding, plafon)', status: 'Baik', keterangan: 'Bersih dan rapi', photo: PHOTO_URLS[1] },
-      { code: 'D2', label: 'SANITARY (Closet, urinoir, kran, shower, floor drain)', status: 'Baik', keterangan: 'Semua sanitary berfungsi', photo: PHOTO_URLS[2] },
-      { code: 'D3', label: 'AIR BERSIH (Pompa, tower, tandon, sumur, PAM, dan Kualitas Air)', status: 'Rusak Sebagian', keterangan: 'Pompa air perlu servis berkala', photo: PHOTO_URLS[3] },
+      { id: 'D1', label: 'FINISHING (Lantai, dinding, plafon)' },
+      { id: 'D2', label: 'SANITARY (Closet, urinoir, kran, shower, floor drain)' },
+      { id: 'D3', label: 'AIR BERSIH (Pompa, tower, tandon, sumur, PAM, dan Kualitas Air)' },
     ]
   },
   {
-    id: 'E', title: 'Pintu', nilai: 94,
+    category: 'E. PINTU',
     items: [
-      { code: 'E1', label: 'PINTU KACA (Handle, lock, floor hinge, seal)', status: 'Baik', keterangan: 'Pintu kaca berfungsi baik', photo: PHOTO_URLS[4] },
-      { code: 'E2', label: 'PINTU AREA SERVICE (Engsel, handle, cat)', status: 'Baik', keterangan: 'Engsel tidak berkarat', photo: PHOTO_URLS[0] },
-      { code: 'E3', label: 'HARDWARE (Door closer, bowdigit, slot)', status: 'Baik', keterangan: 'Door closer berfungsi normal', photo: PHOTO_URLS[1] },
+      { id: 'E1', label: 'PINTU KACA (Handle, lock, floor hinge, seal)' },
+      { id: 'E2', label: 'PINTU AREA SERVICE (Engsel, handle, cat)' },
+      { id: 'E3', label: 'HARDWARE (Door closer, bowdigit, slot)' },
     ]
   },
   {
-    id: 'F', title: 'Penutup Bangunan', nilai: 91,
+    category: 'F. PENUTUP BANGUNAN',
     items: [
-      { code: 'F1', label: 'ATAP (Atap, nok, talang, roof drain)', status: 'Rusak Total', keterangan: 'Talang bocor parah, perlu penggantian', photo: PHOTO_URLS[2] },
-      { code: 'F2', label: 'CLADDING (Cladding Merah/Silver, Flushing)', status: 'Baik', keterangan: 'Cladding masih baik', photo: PHOTO_URLS[3] },
+      { id: 'F1', label: 'ATAP (Atap, nok, talang, roof drain)' },
+      { id: 'F2', label: 'CLADDING (Cladding Merah/Silver, Flushing)' },
     ]
   },
   {
-    id: 'G', title: 'Material Elektrikal Luar', nilai: 89,
+    category: 'G. MATERIAL ELEKTRIKAL LUAR',
     items: [
-      { code: 'G1', label: 'PENERANGAN (Lampu luar, sign, parkir)', status: 'Rusak Sebagian', keterangan: '2 lampu parkir mati', photo: PHOTO_URLS[4] },
-      { code: 'G2', label: 'INSTALASI (Stop kontak, outdoor AC)', status: 'Baik', keterangan: 'Instalasi aman', photo: PHOTO_URLS[0] },
+      { id: 'G1', label: 'PENERANGAN (Lampu luar, sign, parkir)' },
+      { id: 'G2', label: 'INSTALASI (Stop kontak, outdoor AC)' },
     ]
   },
   {
-    id: 'H', title: 'Material Elektrikal Sales', nilai: 92,
+    category: 'H. MATERIAL ELEKTRIKAL SALES',
     items: [
-      { code: 'H1', label: 'PENCAHAYAAN (TL, LED, downlight)', status: 'Baik', keterangan: 'Semua lampu menyala', photo: PHOTO_URLS[1] },
-      { code: 'H2', label: 'PERALATAN (Speaker, CCTV, Air Curtain, APAR)', status: 'Baik', keterangan: 'CCTV aktif, APAR terisi', photo: PHOTO_URLS[2] },
-      { code: 'H3', label: 'INSTALASI (Saklar, stop kontak, kabel)', status: 'Baik', keterangan: 'Kabel rapi dan aman', photo: PHOTO_URLS[3] },
+      { id: 'H1', label: 'PENCAHAYAAN (TL, LED, downlight)' },
+      { id: 'H2', label: 'PERALATAN (Speaker, CCTV, Air Curtain, APAR)' },
+      { id: 'H3', label: 'INSTALASI (Saklar, stop kontak, kabel)' },
     ]
   },
   {
-    id: 'I', title: 'Material Elektrikal Service', nilai: 95,
+    category: 'I. MATERIAL ELEKTRIKAL SERVICE',
     items: [
-      { code: 'I1', label: 'ELEKTRIKAL (exhaust, saklar, stop kontak)', status: 'Baik', keterangan: 'Semua berfungsi baik', photo: PHOTO_URLS[4] },
-      { code: 'I2', label: 'PENCAHAYAAN (lampu)', status: 'Baik', keterangan: 'Penerangan cukup', photo: PHOTO_URLS[0] },
+      { id: 'I1', label: 'ELEKTRIKAL (exhaust, saklar, stop kontak)' },
+      { id: 'I2', label: 'PENCAHAYAAN (lampu)' },
     ]
   },
   {
-    id: 'J', title: 'Panel & Genset', nilai: 100,
+    category: 'J. PANEL & GENSET',
     items: [
-      { code: 'J1', label: 'PANEL LV (Volt, Ampere, CT, Timer, Pilot Lamp)', status: 'Baik', keterangan: 'Panel dalam kondisi prima', photo: PHOTO_URLS[1] },
-      { code: 'J2', label: 'PROTEKSI (MCB, MCCB, COS, Kontaktor)', status: 'Baik', keterangan: 'Proteksi berfungsi normal', photo: PHOTO_URLS[2] },
-      { code: 'J3', label: 'GENSET (Earthing, Wiring, Steker)', status: 'Baik', keterangan: 'Genset siap pakai', photo: PHOTO_URLS[3] },
+      { id: 'J1', label: 'PANEL LV (Volt, Ampere, CT, Timer, Pilot Lamp)' },
+      { id: 'J2', label: 'PROTEKSI (MCB, MCCB, COS, Kontaktor)' },
+      { id: 'J3', label: 'GENSET (Earthing, Wiring, Steker)' },
     ]
-  },
-]
-
-// ─── Badge warna status ────────────────────────────────────────────────────────
-function StatusBadge({ status }: { status: Status }) {
-  const styles: Record<Status, string> = {
-    'Baik': 'bg-emerald-100 text-emerald-700 border border-emerald-200',
-    'Rusak Sebagian': 'bg-amber-100 text-amber-700 border border-amber-200',
-    'Rusak Total': 'bg-red-100 text-red-700 border border-red-200',
   }
+]
+
+// ─── Komponen Badge Status Dinamis ─────────────────────────────────────────────
+function StatusBadge({ status }: { status: string }) {
+  let styles = 'bg-gray-100 text-gray-500 border-gray-200'
+  
+  if (status === 'BAIK') {
+    styles = 'bg-emerald-100 text-emerald-700 border-emerald-200'
+  } else if (status === 'RUSAK MASIH DAPAT DIGUNAKAN') {
+    styles = 'bg-amber-100 text-amber-700 border-amber-200'
+  } else if (status === 'RUSAK TIDAK DAPAT DIGUNAKAN') {
+    styles = 'bg-red-100 text-red-700 border-red-200'
+  }
+
   return (
-    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${styles[status]}`}>
+    <span className={`text-[10px] sm:text-xs font-bold px-3 py-1 rounded-full border text-center leading-tight shadow-sm ${styles}`}>
       {status}
     </span>
   )
 }
 
-// ─── Category Accordion ────────────────────────────────────────────────────────
-function CategoryAccordion({ cat }: { cat: Category }) {
+// ─── Komponen Accordion Kategori ───────────────────────────────────────────────
+function CategoryAccordion({ cat }: { cat: any }) {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="rounded-xl overflow-hidden border border-gray-200">
+    <div className="rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
       <button
         onClick={() => setOpen(!open)}
         className={`w-full px-5 py-4 flex justify-between items-center transition-colors ${open ? 'bg-[#0c539a] text-white' : 'bg-[#f8fafc] hover:bg-[#f1f5f9] text-gray-800'}`}
       >
-        <span className="font-bold text-sm uppercase tracking-wide">
+        <span className="font-bold text-sm uppercase tracking-wide text-left">
           {cat.id}. {cat.title}
         </span>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0 ml-2">
           <span className={`font-black text-lg ${cat.nilai < 90 ? (open ? 'text-red-200' : 'text-red-500') : (open ? 'text-white' : 'text-emerald-600')}`}>
             {cat.nilai}
           </span>
@@ -165,26 +144,40 @@ function CategoryAccordion({ cat }: { cat: Category }) {
             className="overflow-hidden bg-white"
           >
             <div className="divide-y divide-gray-100">
-              {cat.items.map((item) => (
-                <div key={item.code} className="p-5 space-y-3">
-                  {/* Sub-item title */}
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="font-bold text-gray-800 text-sm">{item.code}. {item.label}</p>
+              {cat.items.map((item: any) => (
+                <div key={item.code} className="p-5 space-y-4 hover:bg-gray-50 transition-colors">
+                  {/* Header Sub-item */}
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                    <p className="font-bold text-gray-800 text-sm leading-snug flex-1">
+                      {item.code}. {item.label}
+                    </p>
+                    <div className="shrink-0 flex items-center sm:items-end flex-row sm:flex-col gap-2">
+                      <StatusBadge status={item.status} />
+                      <span className="text-xs font-bold text-gray-400">Skor: {item.nilaiItem}</span>
                     </div>
-                    <StatusBadge status={item.status} />
                   </div>
+                  
                   {/* Keterangan */}
-                  <p className="text-gray-500 text-sm">{item.keterangan}</p>
-                  {/* Foto */}
-                  <div className="rounded-xl overflow-hidden border border-gray-100 bg-gray-50 aspect-video relative">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={item.photo}
-                      alt={item.code}
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="bg-gray-50/50 p-3 rounded-lg border border-gray-100">
+                    <p className="text-gray-600 text-sm"><span className="font-bold text-gray-700">Keterangan:</span> {item.keterangan}</p>
                   </div>
+                  
+                  {/* Foto */}
+                  {item.photo ? (
+                    <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-100 relative max-w-sm">
+                      <img
+                        src={item.photo}
+                        alt={`Foto ${item.code}`}
+                        className="w-full h-auto object-cover max-h-[300px]"
+                        loading="lazy"
+                      />
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-6 flex flex-col items-center justify-center text-gray-400 max-w-sm">
+                      <ImageIcon size={24} className="mb-2 opacity-50" />
+                      <span className="text-xs font-medium">Tidak ada foto dilampirkan</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -198,84 +191,183 @@ function CategoryAccordion({ cat }: { cat: Category }) {
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function RekapDetailView({ data, onBack }: { data: any, onBack: () => void }) {
   const [achievementOpen, setAchievementOpen] = useState(false)
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const nilaiAkhir = data?.nilaiAkhir ?? 100
-  const nilaiColor = nilaiAkhir < 90 ? 'bg-red-600' : 'bg-[#0c539a]'
+  // 1. Fetch Data dari Database
+  useEffect(() => {
+    const fetchDetailData = async () => {
+      try {
+        setLoading(true)
+        const { createClient } = await import('@/utils/supabase/client')
+        const supabase = createClient()
+
+        // Ambil submission_id berdasarkan kode toko yg diklik
+        const { data: subData } = await supabase
+          .from('fcpt_submissions')
+          .select('id')
+          .eq('store_kode', data?.kodeToko)
+          .single()
+
+        if (subData?.id) {
+          // Ambil detail items untuk submission ini
+          const { data: detailData, error } = await supabase
+            .from('fcpt_item_details')
+            .select('*')
+            .eq('submission_id', subData.id)
+            
+          if (error) throw error
+          setItems(detailData || [])
+        }
+      } catch (error) {
+        console.error('Error fetching details:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (data?.kodeToko) fetchDetailData()
+  }, [data])
+
+  // 2. Olah & Kelompokkan Data Live
+  const calculations = useMemo(() => {
+    // a. Perhitungan Rata-rata
+    const sipilItems = items.filter(item => /^[A-F]/.test(item.item_id) && item.nilai !== null)
+    const mepItems = items.filter(item => /^[G-J]/.test(item.item_id) && item.nilai !== null)
+
+    const avgSipil = sipilItems.length > 0 ? sipilItems.reduce((acc, curr) => acc + curr.nilai, 0) / sipilItems.length : 0
+    const avgMep = mepItems.length > 0 ? mepItems.reduce((acc, curr) => acc + curr.nilai, 0) / mepItems.length : 0
+
+    const nilaiAkhir = (avgSipil * 0.75) + (avgMep * 0.25)
+
+    // b. Mapping Data ke struktur "dummyCategories" (Accordion)
+    const groupedData = formDataTemplate.map(section => {
+      
+      const answeredItems = items.filter(dbItem => section.items.some(t => t.id === dbItem.item_id))
+      const validAnswers = answeredItems.filter(i => i.nilai !== null)
+      
+      const avgCategory = validAnswers.length > 0
+        ? validAnswers.reduce((acc, curr) => acc + curr.nilai, 0) / validAnswers.length
+        : 0
+
+      // Ekstrak ID (A, B, C) dan Judul (Area Parkir...) dari "A. Area Parkir..."
+      const splitCat = section.category.split('. ')
+      const catId = splitCat[0]
+      const catTitle = splitCat[1] || section.category
+
+      const displayItems = section.items.map(templateItem => {
+        const dbAnswer = items.find(i => i.item_id === templateItem.id)
+        return {
+          code: templateItem.id,
+          label: templateItem.label,
+          status: dbAnswer?.kondisi || 'Belum Diisi',
+          keterangan: dbAnswer?.keterangan || '-',
+          photo: dbAnswer?.foto_url || null,
+          nilaiItem: dbAnswer?.nilai || 0
+        }
+      }).filter(item => item.status !== 'Belum Diisi') // Hanya tampilkan yang sudah diisi
+
+      return {
+        id: catId,
+        title: catTitle,
+        nilai: Math.round(avgCategory),
+        items: displayItems
+      }
+    }).filter(cat => cat.items.length > 0) // Hanya tampilkan kategori yang ada isinya
+
+    return { 
+      avgSipil: Math.round(avgSipil), 
+      avgMep: Math.round(avgMep), 
+      nilaiAkhir: Math.round(nilaiAkhir), 
+      groupedData 
+    }
+  }, [items])
+
+
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[#f4f7fb] gap-4">
+      <div className="animate-spin w-10 h-10 border-4 border-[#0c539a] border-t-transparent rounded-full shadow-md" />
+      <p className="text-gray-500 font-medium animate-pulse">Memuat data live...</p>
+    </div>
+  )
+
+  const nilaiColor = calculations.nilaiAkhir < 90 ? 'bg-[#cc1e2c]' : 'bg-[#0c539a]'
 
   return (
     <div className="w-full min-h-screen bg-[#f4f7fb]">
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-3xl mx-auto pb-24 px-4 pt-4 space-y-6"
+        className="max-w-3xl mx-auto pb-24 px-4 pt-6 space-y-6"
       >
 
         {/* ── Info Card ── */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="grid grid-cols-2 gap-y-5 gap-x-4">
             <div>
-              <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-0.5">Kode Branch</p>
-              <p className="font-bold text-gray-800">{data?.kodeToko || 'SG1Z'}</p>
+              <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Kode Branch</p>
+              <p className="font-bold text-gray-800 text-lg">{data?.kodeToko || '-'}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-0.5">Nama Branch</p>
-              <p className="font-bold text-gray-800">{data?.namaToko || 'Medan'}</p>
+              <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Nama Branch</p>
+              <p className="font-bold text-gray-800 text-lg">{data?.namaToko || '-'}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-0.5">Nama PIC</p>
-              <p className="font-bold text-gray-800">{data?.namaPic || 'Budi Santoso'}</p>
+              <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Nama PIC</p>
+              <p className="font-bold text-gray-800 text-sm">{data?.namaPic || '-'}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-0.5">Periode</p>
-              <p className="font-bold text-gray-800">Kuartal III – 2026</p>
+              <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Periode</p>
+              <p className="font-bold text-gray-800 text-sm">Realtime Data</p>
             </div>
           </div>
         </div>
 
         {/* ── Achievement Accordion ── */}
-        <div className="rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm">
+        <div className="rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm hidden">
+          {/* Bagian ini saya sembunyikan (hidden) sementara karena logic Achievement 
+              membutuhkan agregasi toko keseluruhan, sedangkan page ini fokus di 1 toko. 
+              Hapus class 'hidden' di baris atas jika ingin tetap menampilkannya. */}
           <button
             onClick={() => setAchievementOpen(!achievementOpen)}
             className={`w-full px-5 py-4 flex justify-between items-center transition-colors ${achievementOpen ? 'bg-[#eef2f6]' : 'bg-white hover:bg-gray-50'}`}
           >
-            <span className="font-bold text-gray-800 uppercase tracking-wide">Achievement</span>
+            <span className="font-bold text-gray-800 uppercase tracking-wide">Achievement Kategori</span>
             <div className="flex items-center gap-3">
-              <span className="font-black text-gray-800">99.7%</span>
+              <span className="font-black text-gray-800">Cek</span>
               {achievementOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
             </div>
           </button>
-          <AnimatePresence>
-            {achievementOpen && (
-              <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
-                <div className="px-5 pb-5 pt-3 border-t border-gray-100 space-y-3">
-                  <div className="flex justify-between text-sm"><span className="text-gray-600 font-medium">Target Checklist</span><span className="font-bold">407</span></div>
-                  <div className="flex justify-between text-sm"><span className="text-gray-600 font-medium">Toko Terchecklist</span><span className="font-bold text-emerald-600">244</span></div>
-                  <div className="flex justify-between text-sm"><span className="text-gray-600 font-medium">Toko Tidak Terchecklist</span><span className="font-bold text-red-500">163</span></div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
 
-        {/* ── Nilai Akhir ── */}
-        <div className="flex items-center gap-4 px-1">
-          <span className="font-black text-gray-800 text-lg uppercase tracking-wide">Nilai Akhir</span>
-          <span className={`${nilaiColor} text-white font-black text-xl px-4 py-1.5 rounded-xl shadow-md`}>
-            {nilaiAkhir}
-          </span>
+        {/* ── Nilai Akhir & Rataan ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between flex-1 pr-4 sm:border-r border-gray-100">
+            <span className="font-black text-gray-800 text-sm sm:text-base uppercase tracking-wide">Nilai Akhir</span>
+            <span className={`${nilaiColor} text-white font-black text-xl px-4 py-1.5 rounded-xl shadow-md`}>
+              {calculations.nilaiAkhir}
+            </span>
+          </div>
+          <div className="flex items-center justify-between flex-1">
+            <span className="font-black text-gray-800 text-sm sm:text-base uppercase tracking-wide">Rataan Sipil</span>
+            <span className="bg-[#0c539a] text-white font-black text-xl px-4 py-1.5 rounded-xl shadow-md">
+              {calculations.avgSipil}
+            </span>
+          </div>
         </div>
 
-        {/* ── Nilai Sipil label ── */}
-        <div className="flex items-center gap-3 px-1">
-          <span className="font-black text-gray-800 text-lg uppercase tracking-wide">Nilai Sipil Rataan</span>
-          <span className="bg-[#0c539a] text-white font-black text-lg px-4 py-1.5 rounded-xl shadow-md">93</span>
-        </div>
-
-        {/* ── Category Accordions ── */}
+        {/* ── Category Accordions (Live Data) ── */}
         <div className="space-y-3">
-          {dummyCategories.map((cat) => (
-            <CategoryAccordion key={cat.id} cat={cat} />
-          ))}
+          {calculations.groupedData.length === 0 ? (
+             <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-300">
+               <p className="text-gray-500 font-medium">Belum ada data checklist yang diisi untuk toko ini.</p>
+             </div>
+          ) : (
+            calculations.groupedData.map((cat) => (
+              <CategoryAccordion key={cat.id} cat={cat} />
+            ))
+          )}
         </div>
 
       </motion.div>
