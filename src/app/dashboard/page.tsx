@@ -2,6 +2,8 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import HODashboard from './HODashboard'
 import ManagerDashboard from './ManagerDashboard'
+import BMTDashboard from './BMTDashboard.tsx'
+
 import WaitingRoomPage from './WaitingRoomPage'
 
 function normalizeRole(raw: string): string {
@@ -47,8 +49,12 @@ export default async function DashboardPage() {
   }
 
   // ── Koordinator Cabang, BMT, Estimator (sementara → ManagerDashboard) ─────
-  if (['koordinator_cabang', 'bmt', 'estimator'].includes(activeRole)) {
+  if (['koordinator_cabang', 'estimator'].includes(activeRole)) {
     return <ManagerDashboard nik={nik} metadata={{ ...metadata, role: activeRole }} />
+  }
+// ── BMT ─────────────────────────────────────────────────
+  if (activeRole === 'bmt') {
+    return <BMTDashboard nik={nik} metadata={{ ...metadata, role: activeRole }} />
   }
 
   // ── Fallback ───────────────────────────────────────────────────────────────
