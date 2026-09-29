@@ -3,6 +3,10 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Search, SlidersHorizontal, Settings2, FileText, Snowflake, Zap, User } from 'lucide-react'
+import {
+  CHILLER_EQUIPMENT_CHECKLIST_TOTAL,
+  normalizeEquipmentTypeFromSubmission,
+} from './chillerChecklistConfig'
 
 type Store = {
   id: string
@@ -12,6 +16,15 @@ type Store = {
   nama_bmt: string
   submitted_at?: string
   is_done?: boolean
+  checklist_done_count?: number
+  checklist_total?: number
+}
+
+function isChillerEquipmentChecklist(checklist: { id?: number; title?: string } | null | undefined) {
+  if (!checklist) return false
+  if (checklist.id === 3) return true
+  const title = (checklist.title ?? '').replace(/\s+/g, ' ').toLowerCase()
+  return title.includes('pendingin') || title.includes('chiller')
 }
 
 export default function ChecklistDetailView({ 
@@ -31,10 +44,13 @@ export default function ChecklistDetailView({
   const [currentUserBmtName, setCurrentUserBmtName] = useState('')
   const [selectedBmt, setSelectedBmt] = useState('') // Dropdown filter untuk HO/Admin
 
+  const chillerChecklist = isChillerEquipmentChecklist(checklist)
+
   useEffect(() => {
+    setLoading(true)
     const fetchData = async () => {
       try {
-        const { createClient } = await import('@/utils/supabase/client')
+        const { createClient } = await import('@/frontend/supabase/client')
         const supabase = createClient()
 
         // 1. CEK USER YANG LOGIN
@@ -77,34 +93,81 @@ export default function ChecklistDetailView({
 
 // Tentukan nama tabel berdasarkan title dari props 'checklist'
 let tableName = 'fcpt_submissions'
-const categoryTitle = checklist?.title?.toLowerCase() || ''
+const categoryTitle = (checklist?.title ?? '').replace(/\s+/g, ' ').toLowerCase()
 
-if (categoryTitle.includes('pendingin')) {
-  tableName = 'chiller_submissions' // Ganti jika nama tabel chiller Anda berbeda (misal: equipment_submissions)
+const isChillerChecklist = isChillerEquipmentChecklist(checklist)
+
+if (isChillerChecklist) {
+  tableName = 'chiller_submissions'
 } else if (categoryTitle.includes('genset')) {
   tableName = 'genset_submissions'
 }
 
-// Fetch ke tabel yang sesuai
-const { data: submissions, error: subError } = await supabase
-  .from(tableName)
-  .select('store_kode, submitted_at, created_at') // Sertakan created_at sebagai cadangan
+let merged: Store[] = []
 
-if (subError) {
-  console.error(`Gagal fetch tabel ${tableName}:`, subError)
+if (isChillerChecklist) {
+  const { data: submissions, error: subError } = await supabase
+    .from('chiller_submissions')
+    .select('kode_toko, jenis_mesin, submitted_at, created_at')
+
+  if (subError) {
+    console.error('Gagal fetch tabel chiller_submissions:', subError)
+  }
+
+  const progressByStore: Record<
+    string,
+    { types: Set<string>; latestAt: string | null }
+  > = {}
+
+  submissions?.forEach((s) => {
+    const kode = s.kode_toko
+    if (!kode) return
+    if (!progressByStore[kode]) {
+      progressByStore[kode] = { types: new Set(), latestAt: null }
+    }
+    const bucket = progressByStore[kode]
+    const equipmentType = normalizeEquipmentTypeFromSubmission(s.jenis_mesin)
+    if (equipmentType) bucket.types.add(equipmentType)
+    const ts = s.submitted_at || s.created_at
+    if (ts && (!bucket.latestAt || ts > bucket.latestAt)) {
+      bucket.latestAt = ts
+    }
+  })
+
+  merged = (storesData || []).map((s) => {
+    const progress = progressByStore[s.kode]
+    const doneCount = progress?.types.size ?? 0
+    const total = CHILLER_EQUIPMENT_CHECKLIST_TOTAL
+    return {
+      ...s,
+      submitted_at: progress?.latestAt ?? undefined,
+      checklist_done_count: doneCount,
+      checklist_total: total,
+      is_done: doneCount >= total,
+    }
+  })
+} else {
+  const { data: submissions, error: subError } = await supabase
+    .from(tableName)
+    .select('store_kode, submitted_at, created_at')
+
+  if (subError) {
+    console.error(`Gagal fetch tabel ${tableName}:`, subError)
+  }
+
+  const doneMap: Record<string, string> = {}
+  submissions?.forEach((s) => {
+    doneMap[s.store_kode] = s.submitted_at || s.created_at
+  })
+
+  merged = (storesData || []).map((s) => ({
+    ...s,
+    submitted_at: doneMap[s.kode] || undefined,
+    checklist_done_count: doneMap[s.kode] ? 1 : 0,
+    checklist_total: 1,
+    is_done: !!doneMap[s.kode],
+  }))
 }
-
-const doneMap: Record<string, string> = {}
-submissions?.forEach(s => {
-  // Gunakan submitted_at, jika null/tidak ada kolomnya pakai created_at
-  doneMap[s.store_kode] = s.submitted_at || s.created_at
-})
-
-const merged = (storesData || []).map(s => ({
-  ...s,
-  submitted_at: doneMap[s.kode] || null,
-  is_done: !!doneMap[s.kode],
-}))
 
 setStores(merged)
       } catch (err) {
@@ -114,7 +177,7 @@ setStores(merged)
       }
     }
     fetchData()
-  }, [])
+  }, [checklist?.id, checklist?.title])
 
   // ==============================
   // LOGIKA FILTERING (CASE-INSENSITIVE)
@@ -244,17 +307,31 @@ setStores(merged)
       {/* Grid of Store Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredStores.map(store => {
+          const doneCount = store.checklist_done_count ?? 0
+          const totalCount =
+            store.checklist_total ??
+            (chillerChecklist ? CHILLER_EQUIPMENT_CHECKLIST_TOTAL : 1)
           const isDone = !!store.is_done
+          const hasPartialProgress = doneCount > 0 && doneCount < totalCount
           const dateLabel = store.submitted_at
             ? new Date(store.submitted_at).toLocaleDateString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
             : 'Belum dicek'
+          const progressLabel = `${doneCount}/${totalCount}`
+          const cardComplete = isDone
+          const cardPartial = hasPartialProgress
 
           return (
             <motion.div 
               key={store.id}
               whileHover={{ y: -4, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }}
               onClick={() => onStoreClick(store, isDone)}
-              className={`rounded-2xl border ${isDone ? 'border-blue-200 bg-blue-50/50' : 'border-red-200 bg-red-50/50'} overflow-hidden transition-all duration-300 cursor-pointer flex flex-col shadow-sm`}
+              className={`rounded-2xl border ${
+                cardComplete
+                  ? 'border-blue-200 bg-blue-50/50'
+                  : cardPartial
+                    ? 'border-amber-200 bg-amber-50/50'
+                    : 'border-red-200 bg-red-50/50'
+              } overflow-hidden transition-all duration-300 cursor-pointer flex flex-col shadow-sm`}
             >
               <div className="p-5 flex-1">
                 <div className="flex justify-between items-start mb-3">
@@ -266,18 +343,38 @@ setStores(merged)
               </div>
 
               {/* Bottom Pill */}
-              <div className={`px-5 py-3 border-t ${isDone ? 'bg-blue-100/50 border-blue-200' : 'bg-red-100/50 border-red-200'} flex items-center justify-between`}>
-                <div className={`flex items-center gap-2 font-bold text-sm ${isDone ? 'text-blue-700' : 'text-red-700'}`}>
+              <div
+                className={`px-5 py-3 border-t flex items-center justify-between ${
+                  cardComplete
+                    ? 'bg-blue-100/50 border-blue-200'
+                    : cardPartial
+                      ? 'bg-amber-100/50 border-amber-200'
+                      : 'bg-red-100/50 border-red-200'
+                }`}
+              >
+                <div
+                  className={`flex items-center gap-2 font-bold text-sm ${
+                    cardComplete ? 'text-blue-700' : cardPartial ? 'text-amber-800' : 'text-red-700'
+                  }`}
+                >
                   {renderIcon()}
                   <span>{checklist?.title?.replace(/\n/g, ' ') || 'Checklist'}</span>
                 </div>
                 
                 <div className="flex items-center gap-4">
-                  <span className={`text-xs font-medium ${isDone ? 'text-blue-600' : 'text-red-500'}`}>
+                  <span
+                    className={`text-xs font-medium ${
+                      cardComplete ? 'text-blue-600' : cardPartial ? 'text-amber-700' : 'text-red-500'
+                    }`}
+                  >
                     {dateLabel}
                   </span>
-                  <div className={`px-3 py-1 rounded-full text-xs font-black text-white shadow-sm ${isDone ? 'bg-[#0c539a]' : 'bg-[#cc1e2c]'}`}>
-                    {isDone ? '1/1' : '0/1'}
+                  <div
+                    className={`px-3 py-1 rounded-full text-xs font-black text-white shadow-sm ${
+                      cardComplete ? 'bg-[#0c539a]' : cardPartial ? 'bg-amber-600' : 'bg-[#cc1e2c]'
+                    }`}
+                  >
+                    {progressLabel}
                   </div>
                 </div>
               </div>

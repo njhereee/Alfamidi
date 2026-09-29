@@ -45,7 +45,7 @@ export default function ManagerDashboard({ nik, metadata }: { nik: string, metad
 
   useEffect(() => {
     const fetchData = async () => {
-      const { createClient } = await import('@/utils/supabase/client')
+      const { createClient } = await import('@/frontend/supabase/client')
       const supabase = createClient()
       
       const { data: checklistData } = await supabase.from('checklists').select('*').eq('is_disabled', false).order('created_at', { ascending: true })
@@ -65,7 +65,7 @@ export default function ManagerDashboard({ nik, metadata }: { nik: string, metad
   ]
 
   const handleSignOut = async () => {
-    const { createClient } = await import('@/utils/supabase/client')
+    const { createClient } = await import('@/frontend/supabase/client')
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')
@@ -84,7 +84,7 @@ export default function ManagerDashboard({ nik, metadata }: { nik: string, metad
   const handleSaveProfile = async () => {
     setIsSaving(true)
     try {
-      const { createClient } = await import('@/utils/supabase/client')
+      const { createClient } = await import('@/frontend/supabase/client')
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return

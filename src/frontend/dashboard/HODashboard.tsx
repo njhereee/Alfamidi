@@ -43,7 +43,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
   // Fetch pending users dari Supabase
   useEffect(() => {
     const fetchPending = async () => {
-      const { createClient } = await import('@/utils/supabase/client')
+      const { createClient } = await import('@/frontend/supabase/client')
       const supabase = createClient()
       const { data, error } = await supabase
         .from('profiles')
@@ -61,7 +61,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
   const handleSahkanRole = async () => {
     if (!sahkanTarget || !sahkanRole) return
     setIsSahkan(true)
-    const { createClient } = await import('@/utils/supabase/client')
+    const { createClient } = await import('@/frontend/supabase/client')
     const supabase = createClient()
     const { error } = await supabase
       .from('profiles')
@@ -116,7 +116,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
 
   useEffect(() => {
     const fetchData = async () => {
-      const { createClient } = await import('@/utils/supabase/client')
+      const { createClient } = await import('@/frontend/supabase/client')
       const supabase = createClient()
       
       const { data: checklistData } = await supabase.from('checklists').select('*').order('created_at', { ascending: true })
@@ -136,7 +136,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
   ]
 
   const handleSignOut = async () => {
-    const { createClient } = await import('@/utils/supabase/client')
+    const { createClient } = await import('@/frontend/supabase/client')
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')
@@ -187,7 +187,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
       return
     }
     if (!window.confirm('Yakin ingin menghapus menu ini?')) return
-    const { createClient } = await import('@/utils/supabase/client')
+    const { createClient } = await import('@/frontend/supabase/client')
     const supabase = createClient()
     await supabase.from('checklists').delete().eq('id', id)
     setChecklists(checklists.filter(c => c.id !== id))
@@ -198,7 +198,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
       alert('Menu bawaan tidak bisa di-disable.')
       return
     }
-    const { createClient } = await import('@/utils/supabase/client')
+    const { createClient } = await import('@/frontend/supabase/client')
     const supabase = createClient()
     const newStatus = !item.is_disabled
     await supabase.from('checklists').update({ is_disabled: newStatus }).eq('id', item.id)
@@ -217,7 +217,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
 
     setIsAddingChecklist(true)
     try {
-      const { createClient } = await import('@/utils/supabase/client')
+      const { createClient } = await import('@/frontend/supabase/client')
       const supabase = createClient()
       
       let finalIconUrl = newChecklistIconPreview
@@ -290,14 +290,14 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
 
   const handleDeleteModul = async (id: any) => {
     if (!window.confirm('Yakin ingin menghapus modul ini?')) return
-    const { createClient } = await import('@/utils/supabase/client')
+    const { createClient } = await import('@/frontend/supabase/client')
     const supabase = createClient()
     await supabase.from('modules').delete().eq('id', id)
     setModules(modules.filter(c => c.id !== id))
   }
 
   const handleToggleDisableModul = async (item: any) => {
-    const { createClient } = await import('@/utils/supabase/client')
+    const { createClient } = await import('@/frontend/supabase/client')
     const supabase = createClient()
     const newStatus = !item.is_disabled
     await supabase.from('modules').update({ is_disabled: newStatus }).eq('id', item.id)
@@ -316,7 +316,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
 
     setIsAddingModul(true)
     try {
-      const { createClient } = await import('@/utils/supabase/client')
+      const { createClient } = await import('@/frontend/supabase/client')
       const supabase = createClient()
       
       let finalIconUrl = newModulIconPreview
@@ -363,7 +363,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
   const handleSaveProfile = async () => {
     setIsSaving(true)
     try {
-      const { createClient } = await import('@/utils/supabase/client')
+      const { createClient } = await import('@/frontend/supabase/client')
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return

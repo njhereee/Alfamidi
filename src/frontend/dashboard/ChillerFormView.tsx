@@ -1,38 +1,20 @@
 'use client'
 
-import React, { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Camera, CheckCircle, Thermometer, Box, Wrench } from 'lucide-react'
-
-const chillerTemplate = [
-  {
-    category: '1. Spesifikasi Unit',
-    isSpecsStep: true,
-  },
-  {
-    category: 'A. Bodi & Aksesoris',
-    items: [
-      { id: 'A1', label: 'Kondisi Pintu' },
-      { id: 'A2', label: 'Kondisi Gasket (Karet Pintu)' },
-      { id: 'A3', label: 'Kondisi Body' },
-      { id: 'A4', label: 'Kondisi Roda' },
-      { id: 'A5', label: 'Kondisi Lampu' },
-    ]
-  },
-  {
-    category: 'B. Sistem Pendingin & Mekanikal',
-    items: [
-      { id: 'B1', label: 'Kondisi Kondensor' },
-      { id: 'B2', label: 'Kondisi Fan Kondensor' },
-      { id: 'B3', label: 'Kondisi Filter Kondensor' },
-      { id: 'B4', label: 'Kondisi Evaporator' },
-      { id: 'B5', label: 'Kondisi Fan Evaporator' },
-      { id: 'B6', label: 'Kondisi Kompressor' },
-      { id: 'B7', label: 'Kondisi Thermostat / Pengatur Suhu' },
-      { id: 'B8', label: 'Kondisi Honey Comb' },
-    ]
-  }
-]
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
+import { ArrowLeft, Camera, CheckCircle, Thermometer, Wrench } from 'lucide-react'
+import {
+  CHECKLIST_COUNT_BY_EQUIPMENT,
+  EQUIPMENT_TYPES,
+  allChecklistItemsForType,
+  buildChillerSteps,
+  checklistOptionsForItem,
+  computeChillerNilaiAkhir,
+  equipmentTypeLabel,
+  isEquipmentType,
+  scoreFromChecklistAnswer,
+  type EquipmentType,
+} from './chillerChecklistConfig'
 
 export default function ChillerFormView({ 
   store, 
@@ -47,8 +29,8 @@ export default function ChillerFormView({
 }) {
   const [currentStep, setCurrentStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const prevJenisRef = useRef('')
 
-  // State Spesifikasi Unit
   const [specsData, setSpecsData] = useState({
     merk_mesin: '',
     jenis_mesin: '',
@@ -59,7 +41,6 @@ export default function ChillerFormView({
     keterangan_unit: ''
   })
 
-  // State Jawaban Sub-Item (Kondisi, Nilai, Keterangan, Foto)
   const [answers, setAnswers] = useState<Record<string, { 
     status?: string; 
     nilai?: number; 
@@ -69,24 +50,46 @@ export default function ChillerFormView({
     fotoPreview?: string 
   }>>({})
 
+  const formSteps = useMemo(
+    () => buildChillerSteps(specsData.jenis_mesin),
+    [specsData.jenis_mesin]
+  )
+
+  useEffect(() => {
+    if (prevJenisRef.current === specsData.jenis_mesin) return
+    prevJenisRef.current = specsData.jenis_mesin
+
+    if (!isEquipmentType(specsData.jenis_mesin)) {
+      setAnswers({})
+      setCurrentStep(0)
+      return
+    }
+
+    const allowedIds = new Set(
+      allChecklistItemsForType(specsData.jenis_mesin).map((i) => i.id)
+    )
+    setAnswers((prev) => {
+      const next: typeof prev = {}
+      for (const [id, val] of Object.entries(prev)) {
+        if (allowedIds.has(id)) next[id] = val
+      }
+      return next
+    })
+
+    const steps = buildChillerSteps(specsData.jenis_mesin)
+    setCurrentStep((step) => Math.min(step, steps.length - 1))
+  }, [specsData.jenis_mesin])
+
   const handleSpecsChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setSpecsData({ ...specsData, [e.target.name]: e.target.value })
   }
 
-  // Handle Radio Option & Set Default Nilai Slider
   const handleRadioChange = (itemId: string, value: string) => {
-    let defaultNilai = 100
-    if (value === 'RUSAK MASIH DAPAT DIGUNAKAN') defaultNilai = 70
-    if (value === 'RUSAK TIDAK DAPAT DIGUNAKAN') defaultNilai = 0
-
-    setAnswers(prev => ({ 
-      ...prev, 
-      [itemId]: { ...prev[itemId], status: value, nilai: defaultNilai } 
+    const nilai = scoreFromChecklistAnswer(value)
+    setAnswers((prev) => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], status: value, nilai },
     }))
-  }
-
-  const handleNilaiChange = (itemId: string, value: number) => {
-    setAnswers(prev => ({ ...prev, [itemId]: { ...prev[itemId], nilai: value } }))
   }
 
   const handleKeteranganChange = (itemId: string, value: string) => {
@@ -119,13 +122,26 @@ export default function ChillerFormView({
   const handleSubmit = async () => {
     setIsSubmitting(true)
     try {
-      const { createClient } = await import('@/utils/supabase/client')
+      const { createClient } = await import('@/frontend/supabase/client')
       const supabase = createClient()
 
-      // 1. Kalkulasi Nilai Akhir
-      const answeredItems = Object.values(answers).filter(a => a.nilai !== undefined)
-      const totalSkor = answeredItems.reduce((acc, curr) => acc + (curr.nilai || 0), 0)
-      const nilaiAkhir = answeredItems.length > 0 ? Math.round(totalSkor / 13) : 0
+      if (!isEquipmentType(specsData.jenis_mesin)) {
+        alert('Jenis equipment tidak valid.')
+        return
+      }
+
+      const requiredItems = allChecklistItemsForType(specsData.jenis_mesin)
+      const belumDiisi = requiredItems.filter((item) => !answers[item.id]?.status)
+      if (belumDiisi.length > 0) {
+        alert(`Lengkapi semua item checklist (${belumDiisi.length} belum diisi).`)
+        return
+      }
+
+      const nilaiAkhir = computeChillerNilaiAkhir(
+        specsData.jenis_mesin,
+        requiredItems,
+        answers
+      )
 
       // 2. Insert ke Tabel Induk (chiller_submissions)
       const { data: submission, error: subErr } = await supabase
@@ -138,7 +154,7 @@ export default function ChillerFormView({
           kode_branch: store?.branch_code || '',
           nama_branch: store?.branch_name || '',
           merk_mesin: specsData.merk_mesin,
-          jenis_mesin: specsData.jenis_mesin,
+          jenis_mesin: equipmentTypeLabel(specsData.jenis_mesin) || specsData.jenis_mesin,
           suhu_tercatat: parseFloat(specsData.suhu_tercatat) || 0,
           status_tagging: specsData.status_tagging,
           scan_tagging: specsData.scan_tagging,
@@ -152,8 +168,14 @@ export default function ChillerFormView({
       if (subErr) throw subErr
 
       // 3. Upload Foto & Insert Details per Item
+      const labelById = Object.fromEntries(
+        requiredItems.map((i) => [i.id, i.label])
+      )
       const itemInserts = []
-      for (const [itemId, ans] of Object.entries(answers)) {
+      for (const item of requiredItems) {
+        const itemId = item.id
+        const ans = answers[itemId]
+        if (!ans) continue
         let fotoUrl: string | null = null
         if (ans.fotoFile) {
           fotoUrl = await uploadFoto(supabase, itemId, ans.fotoFile, store?.kode)
@@ -161,7 +183,7 @@ export default function ChillerFormView({
         itemInserts.push({
           submission_id: submission.id,
           item_id: itemId,
-          item_label: itemId,
+          item_label: labelById[itemId] ?? item.label,
           kondisi: ans.status ?? 'Belum Diisi',
           skor: ans.nilai ?? 0,
           keterangan: ans.keterangan ?? '',
@@ -184,8 +206,45 @@ export default function ChillerFormView({
     }
   }
 
-  const section = chillerTemplate[currentStep]
-  const isLastStep = currentStep === chillerTemplate.length - 1
+  const section = formSteps[currentStep] ?? formSteps[0]
+  const isLastStep = currentStep === formSteps.length - 1
+
+  const checklistPreview = useMemo(() => {
+    if (!isEquipmentType(specsData.jenis_mesin)) return null
+    const type = specsData.jenis_mesin as EquipmentType
+    const items = allChecklistItemsForType(type)
+    const total = CHECKLIST_COUNT_BY_EQUIPMENT[type]
+    const firstPhysical = items[0]?.label
+    return { total, firstPhysical }
+  }, [specsData.jenis_mesin])
+
+  const goNext = () => {
+    if (section.isSpecsStep) {
+      if (!specsData.jenis_mesin) {
+        alert('Pilih jenis equipment pendingin terlebih dahulu.')
+        return
+      }
+      if (!specsData.merk_mesin.trim()) {
+        alert('Merk mesin harus diisi.')
+        return
+      }
+      if (!specsData.suhu_tercatat.trim()) {
+        alert('Suhu tercatat harus diisi.')
+        return
+      }
+      if (!isEquipmentType(specsData.jenis_mesin)) {
+        alert('Jenis equipment tidak valid.')
+        return
+      }
+    } else if (section.items?.length) {
+      const missing = section.items.filter((item) => !answers[item.id]?.status)
+      if (missing.length > 0) {
+        alert(`Lengkapi semua item di langkah ini (${missing.length} belum diisi).`)
+        return
+      }
+    }
+    setCurrentStep(Math.min(formSteps.length - 1, currentStep + 1))
+  }
 
   return (
     <motion.div 
@@ -226,10 +285,17 @@ export default function ChillerFormView({
 
       {/* NAVIGASI STEP TAB */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 flex flex-wrap gap-2">
-        {chillerTemplate.map((s, idx) => (
+        {formSteps.map((s, idx) => (
           <button
-            key={idx}
-            onClick={() => setCurrentStep(idx)}
+            key={s.category}
+            type="button"
+            onClick={() => {
+              if (idx > 0 && !isEquipmentType(specsData.jenis_mesin)) {
+                alert('Lengkapi spesifikasi unit dan pilih jenis equipment dulu.')
+                return
+              }
+              setCurrentStep(idx)
+            }}
             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
               currentStep === idx ? 'bg-[#cc1e2c] text-white shadow-md' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
             }`}
@@ -255,6 +321,32 @@ export default function ChillerFormView({
         {section.isSpecsStep ? (
           <div className="p-6 space-y-4">
             <div className="space-y-1">
+              <label className="text-xs font-bold text-gray-500 uppercase">Jenis Equipment Pendingin <span className="text-red-500">*</span></label>
+              <select
+                name="jenis_mesin"
+                value={specsData.jenis_mesin}
+                onChange={handleSpecsChange}
+                className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 outline-none focus:ring-2 focus:ring-[#cc1e2c]"
+              >
+                <option value="">— Pilih jenis unit (Open Chiller, Glass Chiller, dll.) —</option>
+                {EQUIPMENT_TYPES.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              {checklistPreview && (
+                <p className="text-xs text-[#0c539a] font-medium mt-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                  Checklist unit ini: <span className="font-bold">{checklistPreview.total} item</span>
+                  {checklistPreview.firstPhysical && (
+                    <> — dimulai dari <span className="font-bold">{checklistPreview.firstPhysical}</span></>
+                  )}
+                  . Pilihan per item: OKE / NOK (pintu, gasket, roda, honey comb: + TIDAK ADA bila relevan).
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 uppercase">Merk Mesin <span className="text-red-500">*</span></label>
               <input 
                 type="text" 
@@ -267,17 +359,6 @@ export default function ChillerFormView({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase">Jenis Mesin <span className="text-red-500">*</span></label>
-                <input 
-                  type="text" 
-                  name="jenis_mesin" 
-                  value={specsData.jenis_mesin} 
-                  onChange={handleSpecsChange} 
-                  placeholder="Ex: OPEN CHILLER" 
-                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#cc1e2c]" 
-                />
-              </div>
 
               <div className="space-y-1">
                 <label className="text-xs font-bold text-gray-500 uppercase">Suhu Tercatat (°C) <span className="text-red-500">*</span></label>
@@ -352,14 +433,18 @@ export default function ChillerFormView({
             {section.items?.map((item) => {
               const currentAnswer = answers[item.id] || {}
               const status = currentAnswer.status
+              const options = checklistOptionsForItem(item)
 
               return (
                 <div key={item.id} className="p-6 hover:bg-gray-50/50 transition-colors">
-                  <p className="font-semibold text-gray-800 mb-4">{item.id}. {item.label} <span className="text-red-500">*</span></p>
+                  <p className="font-semibold text-gray-800 mb-4">{item.label} <span className="text-red-500">*</span></p>
 
-                  {/* RADIO SELECTION */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-                    {['BAIK', 'RUSAK MASIH DAPAT DIGUNAKAN', 'RUSAK TIDAK DAPAT DIGUNAKAN'].map((opt) => (
+                  <div
+                    className={`grid grid-cols-1 gap-3 mb-4 ${
+                      options.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'
+                    }`}
+                  >
+                    {options.map((opt) => (
                       <label 
                         key={opt} 
                         className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
@@ -380,54 +465,6 @@ export default function ChillerFormView({
                       </label>
                     ))}
                   </div>
-
-                  {/* RANGE SLIDER NILAI */}
-                  <AnimatePresence>
-                    {status && (
-                      <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        className="mb-6 bg-blue-50/50 p-5 rounded-xl border border-blue-100"
-                      >
-                        <div className="flex justify-between items-center mb-3">
-                          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Nilai Kondisi (Kelipatan 5)</label>
-                          <span className="text-xl font-black text-[#0c539a]">{currentAnswer.nilai ?? 0}</span>
-                        </div>
-                        
-                        {status === 'BAIK' && (
-                          <input 
-                            type="range" min="80" max="100" step="5" 
-                            value={currentAnswer.nilai ?? 100}
-                            onChange={(e) => handleNilaiChange(item.id, parseInt(e.target.value))}
-                            className="w-full accent-[#0c539a] cursor-pointer"
-                          />
-                        )}
-                        
-                        {status === 'RUSAK MASIH DAPAT DIGUNAKAN' && (
-                          <input 
-                            type="range" min="50" max="70" step="5" 
-                            value={currentAnswer.nilai ?? 70}
-                            onChange={(e) => handleNilaiChange(item.id, parseInt(e.target.value))}
-                            className="w-full accent-amber-500 cursor-pointer"
-                          />
-                        )}
-                        
-                        {status === 'RUSAK TIDAK DAPAT DIGUNAKAN' && (
-                          <input 
-                            type="range" min="0" max="50" step="5" 
-                            value={currentAnswer.nilai ?? 0}
-                            onChange={(e) => handleNilaiChange(item.id, parseInt(e.target.value))}
-                            className="w-full accent-red-500 cursor-pointer"
-                          />
-                        )}
-
-                        <div className="flex justify-between text-[10px] text-gray-400 font-bold mt-2">
-                          <span>Min: {status === 'BAIK' ? 80 : status === 'RUSAK MASIH DAPAT DIGUNAKAN' ? 50 : 0}</span>
-                          <span>Max: {status === 'BAIK' ? 100 : status === 'RUSAK MASIH DAPAT DIGUNAKAN' ? 70 : 50}</span>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
 
                   {/* KETERANGAN & UPLOAD FOTO PER ITEM */}
                   <div className="space-y-4 pt-2 border-t border-gray-100 mt-2">
@@ -485,7 +522,8 @@ export default function ChillerFormView({
 
         {!isLastStep ? (
           <button 
-            onClick={() => setCurrentStep(Math.min(chillerTemplate.length - 1, currentStep + 1))} 
+            type="button"
+            onClick={goNext}
             className="px-8 py-3 bg-[#cc1e2c] text-white font-bold rounded-xl hover:bg-red-800 transition-colors shadow-sm"
           >
             Selanjutnya

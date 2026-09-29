@@ -40,7 +40,7 @@ export default function RekapView({ onSelectDetail }: { onSelectDetail?: (item: 
   const fetchRekapData = async () => {
     try {
       setLoading(true)
-      const { createClient } = await import('@/utils/supabase/client')
+      const { createClient } = await import('@/frontend/supabase/client')
       const supabase = createClient()
 
       // 1. Ambil semua stores

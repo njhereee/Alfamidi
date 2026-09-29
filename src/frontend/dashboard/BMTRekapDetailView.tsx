@@ -203,7 +203,7 @@ export default function BMTRekapDetailView({ data, onBack }: { data: any, onBack
     const fetchAllData = async () => {
       try {
         setLoading(true)
-        const { createClient } = await import('@/utils/supabase/client')
+        const { createClient } = await import('@/frontend/supabase/client')
         const supabase = createClient()
         const storeKode = data?.kodeToko
 
@@ -322,22 +322,96 @@ export default function BMTRekapDetailView({ data, onBack }: { data: any, onBack
     }
   }, [fcptItems])
 
-  const getBase64ImageFromURL = (url: string): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image()
-      img.crossOrigin = 'Anonymous'
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        canvas.width = img.width
-        canvas.height = img.height
-        const ctx = canvas.getContext('2d')
-        ctx?.drawImage(img, 0, 0)
-        resolve(canvas.toDataURL('image/jpeg'))
-      }
-      img.onerror = (error) => reject(error)
-      img.src = url
-    })
+  type PdfLoadedImage = { data: string; width: number; height: number; format: 'JPEG' | 'PNG' }
+
+  const bitmapToPdfImage = async (
+    bitmap: ImageBitmap,
+    preferPng: boolean
+  ): Promise<PdfLoadedImage> => {
+    const canvas = document.createElement('canvas')
+    canvas.width = bitmap.width
+    canvas.height = bitmap.height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas tidak tersedia')
+    ctx.drawImage(bitmap, 0, 0)
+    bitmap.close()
+
+    const usePng = preferPng
+    const data = canvas.toDataURL(usePng ? 'image/png' : 'image/jpeg', 0.92)
+    return {
+      data,
+      width: canvas.width,
+      height: canvas.height,
+      format: usePng ? 'PNG' : 'JPEG',
+    }
   }
+
+  /** Muat gambar via fetch+blob agar canvas tidak kena CORS/tainted (umum di Supabase Storage). */
+  const loadImageForPdf = async (url: string): Promise<PdfLoadedImage | null> => {
+    const preferPng = url.toLowerCase().includes('.png')
+
+    try {
+      const response = await fetch(url)
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const blob = await response.blob()
+      const bitmap = await createImageBitmap(blob)
+      return await bitmapToPdfImage(bitmap, preferPng || blob.type.includes('png'))
+    } catch (fetchErr) {
+      console.warn('Fetch gambar gagal, coba fallback Image:', url, fetchErr)
+    }
+
+    try {
+      const bitmap = await new Promise<ImageBitmap>((resolve, reject) => {
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
+        img.onload = () => {
+          createImageBitmap(img)
+            .then(resolve)
+            .catch(reject)
+        }
+        img.onerror = () => reject(new Error('Image onerror'))
+        img.src = url
+      })
+      return await bitmapToPdfImage(bitmap, preferPng)
+    } catch (err) {
+      console.error('Gagal load gambar untuk PDF:', url, err)
+      return null
+    }
+  }
+
+  /** Ukuran gambar di PDF (mm) — proporsi asli, tidak distretch */
+  const fitImageMm = (
+    pixelW: number,
+    pixelH: number,
+    maxWmm: number,
+    maxHmm: number
+  ) => {
+    if (pixelW <= 0 || pixelH <= 0) return { w: 0, h: 0 }
+    const aspect = pixelW / pixelH
+    let w = maxWmm
+    let h = w / aspect
+    if (h > maxHmm) {
+      h = maxHmm
+      w = h * aspect
+    }
+    return { w, h }
+  }
+
+  const pdfItemRowCells = (item: {
+    code: string
+    label: string
+    status: string
+    nilaiItem: number | string
+    keterangan?: string
+  }) => [
+    item.code,
+    item.label,
+    item.status,
+    String(item.nilaiItem),
+    item.keterangan || '-',
+  ]
+
+  const emptyPdfItemCells = () => ['—', '—', '—', '—', '—']
 
   const exportToPDF = async () => {
     setIsExporting(true)
@@ -349,16 +423,16 @@ export default function BMTRekapDetailView({ data, onBack }: { data: any, onBack
         })
       })
 
-      const base64Map: Record<string, string> = {}
+      const imageMap: Record<string, PdfLoadedImage> = {}
       await Promise.all(
         Array.from(imageUrls).map(async (url) => {
-          try {
-            base64Map[url] = await getBase64ImageFromURL(url)
-          } catch (error) {
-            console.error("Gagal load gambar:", url)
-          }
+          const loaded = await loadImageForPdf(url)
+          if (loaded) imageMap[url] = loaded
         })
       )
+
+      const pdfHalfWidthMm = 88
+      const pdfImageMaxHmm = 42
 
       const doc = new jsPDF()
       doc.setFontSize(16)
@@ -388,61 +462,121 @@ export default function BMTRekapDetailView({ data, onBack }: { data: any, onBack
         doc.setFont('helvetica', 'bold')
         doc.text(`${cat.id}. ${cat.title} (Nilai: ${cat.nilai})`, 14, startY)
 
+        const pdfImagePlacements: Record<string, PdfLoadedImage> = {}
         const tableBody: any[] = []
-        cat.items.forEach(item => {
+        const items = cat.items as Array<{
+          code: string
+          label: string
+          status: string
+          nilaiItem: number | string
+          keterangan?: string
+          photo?: string
+        }>
+
+        for (let i = 0; i < items.length; i += 2) {
+          const left = items[i]
+          const right = items[i + 1]
+
           tableBody.push([
-            item.code,
-            item.label,
-            item.status,
-            item.nilaiItem,
-            item.keterangan || '-'
+            ...pdfItemRowCells(left),
+            ...(right ? pdfItemRowCells(right) : emptyPdfItemCells()),
           ])
 
-          const base64Data = item.photo && base64Map[item.photo] ? base64Map[item.photo] : null
-          if (base64Data) {
+          const leftImg = left.photo ? imageMap[left.photo] : undefined
+          const rightImg = right?.photo ? imageMap[right.photo] : undefined
+
+          if (leftImg || rightImg) {
+            const leftSize = leftImg
+              ? fitImageMm(leftImg.width, leftImg.height, pdfHalfWidthMm - 4, pdfImageMaxHmm)
+              : { w: 0, h: 0 }
+            const rightSize = rightImg
+              ? fitImageMm(rightImg.width, rightImg.height, pdfHalfWidthMm - 4, pdfImageMaxHmm)
+              : { w: 0, h: 0 }
+            const rowHmm = Math.max(leftSize.h, rightSize.h, 18) + 6
+            const imageRowIndex = tableBody.length
+
             tableBody.push([
               {
-                content: base64Data, 
-                colSpan: 5,          
-                styles: { minCellHeight: 36, fillColor: [249, 250, 251] } 
-              }
+                content: '',
+                colSpan: 5,
+                styles: { minCellHeight: rowHmm, fillColor: [249, 250, 251] },
+              },
+              {
+                content: '',
+                colSpan: 5,
+                styles: { minCellHeight: rowHmm, fillColor: [249, 250, 251] },
+              },
             ])
+
+            if (leftImg) {
+              pdfImagePlacements[`${cat.id}:${imageRowIndex}:left`] = leftImg
+            }
+            if (rightImg) {
+              pdfImagePlacements[`${cat.id}:${imageRowIndex}:right`] = rightImg
+            }
           }
-        })
+        }
+
+        if (tableBody.length === 0) {
+          startY += 8
+          return
+        }
 
         autoTable(doc, {
           startY: startY + 4,
-          head: [['Kode', 'Item Pengecekan', 'Kondisi', 'Skor', 'Keterangan']],
+          head: [[
+            'Kode', 'Item Pengecekan', 'Kondisi', 'Skor', 'Ket',
+            'Kode', 'Item Pengecekan', 'Kondisi', 'Skor', 'Ket',
+          ]],
           body: tableBody,
           theme: 'grid',
+          tableWidth: 176,
           rowPageBreak: 'avoid',
-          margin: { top: 20, bottom: 20 },
-          styles: { fontSize: 8, cellPadding: 3, valign: 'middle' },
-          headStyles: { fillColor: [12, 83, 154], textColor: 255 },
+          margin: { top: 20, bottom: 20, left: 14, right: 20 },
+          styles: { fontSize: 7, cellPadding: 2.5, valign: 'top' },
+          headStyles: { fillColor: [12, 83, 154], textColor: 255, fontSize: 7 },
           columnStyles: {
-            0: { cellWidth: 15 },
-            1: { cellWidth: 70 },
-            2: { cellWidth: 40 },
-            3: { cellWidth: 15, halign: 'center' },
-            4: { cellWidth: 'auto' }, 
+            0: { cellWidth: 11 },
+            1: { cellWidth: 30 },
+            2: { cellWidth: 20 },
+            3: { cellWidth: 9, halign: 'center' },
+            4: { cellWidth: 18 },
+            5: { cellWidth: 11 },
+            6: { cellWidth: 30 },
+            7: { cellWidth: 20 },
+            8: { cellWidth: 9, halign: 'center' },
+            9: { cellWidth: 18 },
           },
-          didParseCell: function(d) {
-            if (d.section === 'body' && d.cell.colSpan === 5) {
-              d.cell.text = [] 
+          didParseCell(d) {
+            if (d.section !== 'body' || d.cell.colSpan !== 5) return
+            const side = d.column.index < 5 ? 'left' : 'right'
+            const key = `${cat.id}:${d.row.index}:${side}`
+            if (pdfImagePlacements[key]) d.cell.text = []
+          },
+          didDrawCell(d) {
+            if (d.section !== 'body' || d.cell.colSpan !== 5) return
+            const side = d.column.index < 5 ? 'left' : 'right'
+            const img = pdfImagePlacements[`${cat.id}:${d.row.index}:${side}`]
+            if (!img?.data) return
+
+            const pad = 2
+            const maxW = d.cell.width - pad * 2
+            const maxH = d.cell.height - pad * 2
+            const { w, h } = fitImageMm(img.width, img.height, maxW, maxH)
+            if (w <= 0 || h <= 0) return
+
+            const x = d.cell.x + (d.cell.width - w) / 2
+            const y = d.cell.y + (d.cell.height - h) / 2
+            try {
+              doc.addImage(img.data, img.format, x, y, w, h)
+            } catch (drawErr) {
+              console.error(
+                'Gagal menempel gambar ke PDF:',
+                `${cat.id}:${d.row.index}:${side}`,
+                drawErr
+              )
             }
           },
-          didDrawCell: function (d) {
-            if (d.section === 'body' && d.cell.colSpan === 5) {
-              const base64Data = d.row.raw[0].content
-              if (base64Data && typeof base64Data === 'string' && base64Data.startsWith('data:image')) {
-                const imgWidth = 50
-                const imgHeight = 30
-                const xPos = d.cell.x + (d.cell.width / 2) - (imgWidth / 2)
-                const yPos = d.cell.y + 3
-                doc.addImage(base64Data, 'JPEG', xPos, yPos, imgWidth, imgHeight)
-              }
-            }
-          }
         })
 
         // @ts-ignore
@@ -455,8 +589,9 @@ export default function BMTRekapDetailView({ data, onBack }: { data: any, onBack
 
       doc.save(`Laporan_FCPT_${data?.kodeToko || 'Toko'}.pdf`)
     } catch (error) {
-      console.error("Gagal melakukan export PDF:", error)
-      alert("Terjadi kesalahan saat memuat gambar untuk PDF.")
+      console.error('Gagal melakukan export PDF:', error)
+      const detail = error instanceof Error ? error.message : String(error)
+      alert(`Export PDF gagal: ${detail}`)
     } finally {
       setIsExporting(false)
     }

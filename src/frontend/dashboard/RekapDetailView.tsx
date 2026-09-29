@@ -199,7 +199,7 @@ export default function RekapDetailView({ data, onBack }: { data: any, onBack: (
     const fetchDetailData = async () => {
       try {
         setLoading(true)
-        const { createClient } = await import('@/utils/supabase/client')
+        const { createClient } = await import('@/frontend/supabase/client')
         const supabase = createClient()
 
         // Ambil submission_id berdasarkan kode toko yg diklik

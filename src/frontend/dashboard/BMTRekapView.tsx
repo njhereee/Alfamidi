@@ -7,19 +7,35 @@ import {
   CartesianGrid as ReCartesianGrid, Tooltip as RechartsTooltipComponent, ResponsiveContainer as ReResponsiveContainer, 
   PieChart as RePieChart, Pie as RePie, Cell as ReCell, Legend as ReLegend 
 } from 'recharts'
-import { Calendar, Hash, ChevronRight, CheckSquare } from 'lucide-react'
+import { Calendar, Hash, ChevronRight, CheckSquare, LayoutList } from 'lucide-react'
 import BMTRekapDetailView from './BMTRekapDetailView'
+import {
+  CHILLER_EQUIPMENT_CHECKLIST_TOTAL,
+  normalizeEquipmentTypeFromSubmission,
+} from './chillerChecklistConfig'
 
-type StoreData = {
+type RecapType = 'fcpt' | 'chiller' | 'genset'
+
+type StoreBase = {
   id: string
   kodeToko: string
   namaToko: string
   branch: string
   namaPic: string
+}
+
+type StoreData = StoreBase & {
   isDone: boolean
   submittedAt: string | null
   nilaiAkhir: number
   jmlTerceklist: number
+  jmlTotal?: number
+}
+
+const RECAP_LABELS: Record<RecapType, string> = {
+  fcpt: 'Rekap FCPT',
+  chiller: 'Rekap Chiller',
+  genset: 'Rekap Genset',
 }
 
 const COLORS = ['#0c539a', '#cc1e2c', '#f59e0b', '#10b981', '#6366f1', '#ec4899', '#94a3b8']
@@ -32,21 +48,71 @@ interface BMTRekapViewProps {
 
 export default function BMTRekapView({ nik, metadata, onSelectDetail }: BMTRekapViewProps) {
   // Filter States
+  const [recapType, setRecapType] = useState<RecapType>('fcpt')
   const [filterTanggal, setFilterTanggal] = useState('')
   const [filterKodeToko, setFilterKodeToko] = useState('')
   const [filterStatus, setFilterStatus] = useState('all') // 'all' | 'done' | 'pending'
   const [selectedItem, setSelectedItem] = useState<any>(null)
 
   // Data States
-  const [rawStoresData, setRawStoresData] = useState<StoreData[]>([])
+  const [storeBases, setStoreBases] = useState<StoreBase[]>([])
+  const [fcptByKode, setFcptByKode] = useState<Record<string, { submitted_at: string; nilai_akhir: number; jml_terceklist: number }>>({})
+  const [chillerByKode, setChillerByKode] = useState<
+    Record<string, { types: Set<string>; latestAt: string | null; nilaiSum: number; nilaiCount: number }>
+  >({})
+  const [gensetByKode, setGensetByKode] = useState<
+    Record<string, { submitted_at: string; nilai_akhir: number }>
+  >({})
   const [loading, setLoading] = useState(true)
+
+  const rawStoresData = useMemo((): StoreData[] => {
+    return storeBases.map((store) => {
+      if (recapType === 'chiller') {
+        const progress = chillerByKode[store.kodeToko]
+        const doneCount = progress?.types.size ?? 0
+        const total = CHILLER_EQUIPMENT_CHECKLIST_TOTAL
+        const avgNilai =
+          progress && progress.nilaiCount > 0
+            ? Math.round(progress.nilaiSum / progress.nilaiCount)
+            : 0
+        return {
+          ...store,
+          isDone: doneCount >= total,
+          submittedAt: progress?.latestAt ?? null,
+          nilaiAkhir: avgNilai,
+          jmlTerceklist: doneCount,
+          jmlTotal: total,
+        }
+      }
+
+      if (recapType === 'genset') {
+        const sub = gensetByKode[store.kodeToko]
+        return {
+          ...store,
+          isDone: !!sub,
+          submittedAt: sub?.submitted_at ?? null,
+          nilaiAkhir: sub?.nilai_akhir ?? 0,
+          jmlTerceklist: sub ? 1 : 0,
+        }
+      }
+
+      const sub = fcptByKode[store.kodeToko]
+      return {
+        ...store,
+        isDone: !!sub,
+        submittedAt: sub?.submitted_at ?? null,
+        nilaiAkhir: sub?.nilai_akhir ?? 0,
+        jmlTerceklist: sub?.jml_terceklist ?? 0,
+      }
+    })
+  }, [storeBases, fcptByKode, chillerByKode, gensetByKode, recapType])
 
   // Fetch Data khusus Toko milik BMT
   useEffect(() => {
     const fetchBMTData = async () => {
       try {
         setLoading(true)
-        const { createClient } = await import('@/utils/supabase/client')
+        const { createClient } = await import('@/frontend/supabase/client')
         const supabase = createClient()
 
         // 1. Identifikasi User BMT
@@ -77,48 +143,90 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail }: BMTRekap
         const storeCodes = (storesData || []).map(s => s.kode).filter(Boolean)
 
         // Jika BMT belum memiliki toko yang ditugaskan
+        const bases: StoreBase[] = (storesData || []).map((store) => ({
+          id: store.id,
+          kodeToko: store.kode,
+          namaToko: store.nama,
+          branch: store.branch || 'Unknown',
+          namaPic: store.nama_bmt || userName || 'BMT Staff',
+        }))
+
         if (storeCodes.length === 0) {
-          setRawStoresData([])
+          setStoreBases([])
+          setFcptByKode({})
+          setChillerByKode({})
+          setGensetByKode({})
           setLoading(false)
           return
         }
 
-        // 3. Ambil data submission HANYA untuk toko-toko milik BMT tersebut
-        const { data: submissionsData, error: subError } = await supabase
-          .from('view_rekap_fcpt')
-          .select('store_kode, submitted_at, nilai_akhir, jml_terceklist')
-          .in('store_kode', storeCodes)
+        setStoreBases(bases)
 
-        if (subError) {
-          console.error('Submissions Fetch Error Detail:', subError.message, subError.details)
-          throw subError
+        const [fcptRes, chillerRes, gensetRes] = await Promise.all([
+          supabase
+            .from('view_rekap_fcpt')
+            .select('store_kode, submitted_at, nilai_akhir, jml_terceklist')
+            .in('store_kode', storeCodes),
+          supabase
+            .from('chiller_submissions')
+            .select('kode_toko, jenis_mesin, submitted_at, created_at, nilai_akhir')
+            .in('kode_toko', storeCodes),
+          supabase
+            .from('genset_submissions')
+            .select('kode_toko, submitted_at, created_at, nilai_akhir')
+            .in('kode_toko', storeCodes),
+        ])
+
+        if (fcptRes.error) {
+          console.error('FCPT Fetch Error:', fcptRes.error.message, fcptRes.error.details)
+          throw fcptRes.error
         }
 
-        // Mapping submission berdasarkan store_kode
-        const subMap: Record<string, any> = {}
-        if (submissionsData) {
-          submissionsData.forEach((sub: any) => {
-            subMap[sub.store_kode] = sub
-          })
-        }
-
-        // 4. Gabungkan Data
-        const merged: StoreData[] = (storesData || []).map(store => {
-          const sub = subMap[store.kode]
-          return {
-            id: store.id,
-            kodeToko: store.kode,
-            namaToko: store.nama,
-            branch: store.branch || 'Unknown',
-            namaPic: store.nama_bmt || userName || 'BMT Staff',
-            isDone: !!sub,
-            submittedAt: sub?.submitted_at || null,
-            nilaiAkhir: sub?.nilai_akhir ?? 0,
-            jmlTerceklist: sub?.jml_terceklist ?? 0
-          }
+        const fcptMap: typeof fcptByKode = {}
+        fcptRes.data?.forEach((sub: any) => {
+          fcptMap[sub.store_kode] = sub
         })
+        setFcptByKode(fcptMap)
 
-        setRawStoresData(merged)
+        if (chillerRes.error) {
+          console.error('Chiller Fetch Error:', chillerRes.error.message, chillerRes.error.details)
+        } else {
+          const chillerMap: typeof chillerByKode = {}
+          chillerRes.data?.forEach((sub: any) => {
+            const kode = sub.kode_toko
+            if (!kode) return
+            if (!chillerMap[kode]) {
+              chillerMap[kode] = { types: new Set(), latestAt: null, nilaiSum: 0, nilaiCount: 0 }
+            }
+            const bucket = chillerMap[kode]
+            const equipmentType = normalizeEquipmentTypeFromSubmission(sub.jenis_mesin)
+            if (equipmentType) bucket.types.add(equipmentType)
+            const ts = sub.submitted_at || sub.created_at
+            if (ts && (!bucket.latestAt || ts > bucket.latestAt)) {
+              bucket.latestAt = ts
+            }
+            if (typeof sub.nilai_akhir === 'number') {
+              bucket.nilaiSum += sub.nilai_akhir
+              bucket.nilaiCount += 1
+            }
+          })
+          setChillerByKode(chillerMap)
+        }
+
+        if (gensetRes.error) {
+          console.error('Genset Fetch Error:', gensetRes.error.message, gensetRes.error.details)
+        } else {
+          const gMap: typeof gensetByKode = {}
+          gensetRes.data?.forEach((sub: any) => {
+            const kode = sub.kode_toko
+            if (!kode) return
+            const ts = sub.submitted_at || sub.created_at
+            if (!gMap[kode] || (ts && ts > gMap[kode].submitted_at)) {
+              gMap[kode] = { submitted_at: ts, nilai_akhir: sub.nilai_akhir ?? 0 }
+            }
+          })
+          setGensetByKode(gMap)
+        }
       } catch (error: any) {
         console.error('Error fetching BMT rekap data:', error?.message || error?.details || error)
       } finally {
@@ -209,9 +317,30 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail }: BMTRekap
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6 border-b border-gray-100 pb-4">
           <div>
-            <h2 className="text-xl font-bold text-gray-800">Rekapitulasi FCPT Area BMT</h2>
-            <p className="text-xs text-gray-500 font-medium mt-0.5">
+            <h2 className="text-xl font-bold text-gray-800 flex flex-wrap items-center gap-2">
+              <span>Rekapitulasi</span>
+              <span className="relative inline-flex items-center">
+                <LayoutList className="absolute left-3 top-1/2 -translate-y-1/2 text-[#0c539a] pointer-events-none" size={16} />
+                <select
+                  value={recapType}
+                  onChange={(e) => setRecapType(e.target.value as RecapType)}
+                  className="appearance-none pl-9 pr-8 py-1.5 rounded-lg border-2 border-[#0c539a]/30 bg-blue-50/80 text-[#0c539a] text-base font-bold cursor-pointer focus:ring-2 focus:ring-[#0c539a] outline-none hover:bg-blue-50 transition-colors"
+                  aria-label="Jenis rekapitulasi"
+                >
+                  <option value="fcpt">{RECAP_LABELS.fcpt}</option>
+                  <option value="chiller">{RECAP_LABELS.chiller}</option>
+                  <option value="genset">{RECAP_LABELS.genset}</option>
+                </select>
+              </span>
+              <span>Area BMT</span>
+            </h2>
+            <p className="text-xs text-gray-500 font-medium mt-1">
               Menampilkan {totalTokoPegangan} toko yang ditugaskan kepada Anda.
+              {recapType === 'chiller' && (
+                <span className="block text-[11px] text-gray-400 mt-0.5">
+                  Toko dianggap selesai jika seluruh {CHILLER_EQUIPMENT_CHECKLIST_TOTAL} jenis perangkat pendingin sudah diceklist.
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -338,11 +467,21 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail }: BMTRekap
                     <td className="px-6 py-4 font-bold text-gray-800">{row.kodeToko}</td>
                     <td className="px-6 py-4 text-gray-600 truncate max-w-[200px]">{row.namaToko}</td>
                     <td className="px-6 py-4 text-gray-600">{row.namaPic}</td>
-                    <td className={`px-6 py-4 text-center font-bold ${row.isDone ? (row.nilaiAkhir >= 90 ? 'text-emerald-600' : 'text-red-600') : 'text-gray-400'}`}>
-                      {row.isDone ? row.nilaiAkhir : '-'}
+                    <td className={`px-6 py-4 text-center font-bold ${
+                      row.jmlTerceklist > 0
+                        ? row.nilaiAkhir >= 90
+                          ? 'text-emerald-600'
+                          : 'text-red-600'
+                        : 'text-gray-400'
+                    }`}>
+                      {row.jmlTerceklist > 0 ? row.nilaiAkhir : '-'}
                     </td>
                     <td className="px-6 py-4 text-center font-bold text-gray-800">
-                      {row.isDone ? row.jmlTerceklist : '0'}
+                      {recapType === 'chiller' && row.jmlTotal != null
+                        ? `${row.jmlTerceklist} / ${row.jmlTotal}`
+                        : row.isDone
+                          ? row.jmlTerceklist
+                          : '0'}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <button onClick={() => handleSelectDetail(row)} className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#0c539a] hover:bg-blue-800 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">

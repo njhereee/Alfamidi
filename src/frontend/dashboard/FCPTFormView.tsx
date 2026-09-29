@@ -110,7 +110,7 @@ export default function FCPTFormView({ store, onBack }: { store: any, onBack: ()
   const handleSubmit = async () => {
     setIsSubmitting(true)
     try {
-      const { createClient } = await import('@/utils/supabase/client')
+      const { createClient } = await import('@/frontend/supabase/client')
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
 
