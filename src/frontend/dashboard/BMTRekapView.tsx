@@ -38,15 +38,22 @@ const RECAP_LABELS: Record<RecapType, string> = {
   genset: 'Rekap Genset',
 }
 
+const FILTER_TYPE_MAP: Record<RecapType, string> = {
+  fcpt: 'FCPT',
+  chiller: 'Chiller',
+  genset: 'Genset',
+}
+
 const COLORS = ['#0c539a', '#cc1e2c', '#f59e0b', '#10b981', '#6366f1', '#ec4899', '#94a3b8']
 
 interface BMTRekapViewProps {
   nik?: string
   metadata?: any
-  onSelectDetail?: (item: any) => void
+  onSelectDetail?: (item: any, recapType?: string) => void
+  onViewDetail?: (item: any, recapType?: string) => void
 }
 
-export default function BMTRekapView({ nik, metadata, onSelectDetail }: BMTRekapViewProps) {
+export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDetail }: BMTRekapViewProps) {
   // Filter States
   const [recapType, setRecapType] = useState<RecapType>('fcpt')
   const [filterTanggal, setFilterTanggal] = useState('')
@@ -169,12 +176,12 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail }: BMTRekap
             .in('store_kode', storeCodes),
           supabase
             .from('chiller_submissions')
-            .select('kode_toko, jenis_mesin, submitted_at, created_at, nilai_akhir')
-            .in('kode_toko', storeCodes),
+            .select('store_kode, jenis_mesin, submitted_at, created_at, nilai_akhir')
+            .in('store_kode', storeCodes),
           supabase
             .from('genset_submissions')
-            .select('kode_toko, submitted_at, created_at, nilai_akhir')
-            .in('kode_toko', storeCodes),
+            .select('store_kode, submitted_at, created_at, nilai_akhir')
+            .in('store_kode', storeCodes),
         ])
 
         if (fcptRes.error) {
@@ -193,7 +200,7 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail }: BMTRekap
         } else {
           const chillerMap: typeof chillerByKode = {}
           chillerRes.data?.forEach((sub: any) => {
-            const kode = sub.kode_toko
+            const kode = sub.store_kode
             if (!kode) return
             if (!chillerMap[kode]) {
               chillerMap[kode] = { types: new Set(), latestAt: null, nilaiSum: 0, nilaiCount: 0 }
@@ -218,7 +225,7 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail }: BMTRekap
         } else {
           const gMap: typeof gensetByKode = {}
           gensetRes.data?.forEach((sub: any) => {
-            const kode = sub.kode_toko
+            const kode = sub.store_kode
             if (!kode) return
             const ts = sub.submitted_at || sub.created_at
             if (!gMap[kode] || (ts && ts > gMap[kode].submitted_at)) {
@@ -289,16 +296,32 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail }: BMTRekap
     })).sort((a, b) => b.value - a.value)
   }, [filteredData])
 
-  const handleSelectDetail = (item: any) => {
-    if (onSelectDetail) {
-      onSelectDetail(item)
+  // Handler Kirim Detail dengan Status recapType & filterType
+  const handleSelectDetail = (item: StoreData) => {
+    const currentFilterType = FILTER_TYPE_MAP[recapType] || 'FCPT'
+    const itemWithRecap = {
+      ...item,
+      recapType,
+      filterType: currentFilterType,
+    }
+
+    if (onViewDetail) {
+      onViewDetail(itemWithRecap, recapType)
+    } else if (onSelectDetail) {
+      onSelectDetail(itemWithRecap, recapType)
     } else {
-      setSelectedItem(item)
+      setSelectedItem(itemWithRecap)
     }
   }
 
-  if (selectedItem && !onSelectDetail) {
-    return <BMTRekapDetailView data={selectedItem} onBack={() => setSelectedItem(null)} />
+  if (selectedItem && !onSelectDetail && !onViewDetail) {
+    return (
+      <BMTRekapDetailView 
+        data={selectedItem} 
+        filterType={selectedItem.filterType || FILTER_TYPE_MAP[recapType] || 'FCPT'} 
+        onBack={() => setSelectedItem(null)} 
+      />
+    )
   }
 
   if (loading) return (
@@ -364,7 +387,7 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail }: BMTRekap
               </div>
             </div>
             
-            {/* 2. Filter Status Checklist (Ganti Filter Branch) */}
+            {/* 2. Filter Status Checklist */}
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Status Inspection</label>
               <div className="relative">
@@ -484,7 +507,10 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail }: BMTRekap
                           : '0'}
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <button onClick={() => handleSelectDetail(row)} className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#0c539a] hover:bg-blue-800 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">
+                      <button 
+                        onClick={() => handleSelectDetail(row)} 
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#0c539a] hover:bg-blue-800 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
+                      >
                         Detail <ChevronRight size={14} />
                       </button>
                     </td>

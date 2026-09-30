@@ -15,7 +15,9 @@ import {
   UserCircle, 
   Bell,
   Search,
-  Camera
+  Camera,
+  Menu, // Tambahan Icon
+  X     // Tambahan Icon
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import NextImage from 'next/image'
@@ -48,6 +50,9 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
   const [modules, setModules] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   
+  // State Sidebar Mobile
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+
   // --- STATE UNTUK FORM PROFIL ---
   const [profileImage, setProfileImage] = useState<string | null>(metadata?.avatar_url || null)
   const [fileToUpload, setFileToUpload] = useState<File | null>(null)
@@ -148,66 +153,50 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
     { name: 'Rekap', label: 'Rekap Data', icon: FileSpreadsheet },
   ] as const
 
-
   // -------------------------------------------------------------
-  // VIEW 5: FORM GENSET
+  // RENDER UNTUK SUB-VIEWS (Form / List)
   // -------------------------------------------------------------
   if (currentView === 'gensetForm' && selectedStore) {
     return (
       <div className="min-h-screen bg-[#f4f7fb] pb-12 font-sans">
+        {/* Konten view tetap sama */}
         <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 flex items-center justify-between shadow-sm sticky top-0 z-20">
           <button onClick={() => setCurrentView('storeList')} className="flex items-center gap-2 text-gray-700 hover:text-[#cc1e2c] font-bold text-sm transition-colors">
-            <ArrowLeft size={20} /><span>Kembali ke Daftar Toko</span>
+            <ArrowLeft size={20} /><span>Kembali</span>
           </button>
-          <span className="font-extrabold text-gray-800 text-sm">{activeCategory?.title?.replace('\n', ' ')} - {selectedStore.kode}</span>
+          <span className="font-extrabold text-gray-800 text-sm truncate ml-4">{activeCategory?.title?.replace('\n', ' ')} - {selectedStore.kode}</span>
         </div>
         <div className="p-4 md:p-8">
-          <GensetFormView 
-            store={selectedStore} 
-            userNik={nik} 
-            userNama={fullName} 
-            onBack={() => setCurrentView('storeList')} 
-          />
+          <GensetFormView store={selectedStore} userNik={nik} userNama={fullName} onBack={() => setCurrentView('storeList')} />
         </div>
       </div>
     )
   }
 
-  // -------------------------------------------------------------
-  // VIEW 4: FORM CHILLER / EQUIPMENT PENDINGIN
-  // -------------------------------------------------------------
   if (currentView === 'chillerForm' && selectedStore) {
     return (
       <div className="min-h-screen bg-[#f4f7fb] pb-12 font-sans">
         <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 flex items-center justify-between shadow-sm sticky top-0 z-20">
           <button onClick={() => setCurrentView('storeList')} className="flex items-center gap-2 text-gray-700 hover:text-[#cc1e2c] font-bold text-sm transition-colors">
-            <ArrowLeft size={20} /><span>Kembali ke Daftar Toko</span>
+            <ArrowLeft size={20} /><span>Kembali</span>
           </button>
-          <span className="font-extrabold text-gray-800 text-sm">{activeCategory?.title?.replace('\n', ' ')} - {selectedStore.kode}</span>
+          <span className="font-extrabold text-gray-800 text-sm truncate ml-4">{activeCategory?.title?.replace('\n', ' ')} - {selectedStore.kode}</span>
         </div>
         <div className="p-4 md:p-8">
-          <ChillerFormView 
-            store={selectedStore} 
-            userNik={nik}
-            userNama={fullName}
-            onBack={() => setCurrentView('storeList')} 
-          />
+          <ChillerFormView store={selectedStore} userNik={nik} userNama={fullName} onBack={() => setCurrentView('storeList')} />
         </div>
       </div>
     )
   }
 
-  // -------------------------------------------------------------
-  // VIEW 3: FORM CHECKLIST FCPT
-  // -------------------------------------------------------------
   if (currentView === 'fcptForm' && selectedStore) {
     return (
       <div className="min-h-screen bg-[#f4f7fb] pb-12 font-sans">
         <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 flex items-center justify-between shadow-sm sticky top-0 z-20">
           <button onClick={() => setCurrentView('storeList')} className="flex items-center gap-2 text-gray-700 hover:text-[#cc1e2c] font-bold text-sm transition-colors">
-            <ArrowLeft size={20} /><span>Kembali ke Daftar Toko</span>
+            <ArrowLeft size={20} /><span>Kembali</span>
           </button>
-          <span className="font-extrabold text-gray-800 text-sm">{activeCategory?.title} - {selectedStore.kode}</span>
+          <span className="font-extrabold text-gray-800 text-sm truncate ml-4">{activeCategory?.title} - {selectedStore.kode}</span>
         </div>
         <div className="p-4 md:p-8">
           <FCPTFormView store={selectedStore} onBack={() => setCurrentView('storeList')} />
@@ -216,18 +205,15 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
     )
   }
 
-  // -------------------------------------------------------------
-  // VIEW 2: DAFTAR TOKO 
-  // -------------------------------------------------------------
   if (currentView === 'storeList' && activeCategory) {
     return (
       <div className="min-h-screen bg-[#f8f9fa] flex flex-col font-sans">
         <div className="bg-white px-4 py-4 md:px-8 border-b border-gray-200 flex items-center justify-between sticky top-0 z-20">
-          <div className="flex items-center gap-4">
-            <button onClick={() => { setCurrentView('dashboard'); setActiveCategory(null); }} className="w-10 h-10 flex items-center justify-center border border-gray-200 rounded-full hover:bg-gray-50 transition-colors text-gray-600">
+          <div className="flex items-center gap-3 md:gap-4">
+            <button onClick={() => { setCurrentView('dashboard'); setActiveCategory(null); }} className="w-10 h-10 flex items-center justify-center border border-gray-200 rounded-full hover:bg-gray-50 transition-colors text-gray-600 flex-shrink-0">
               <ArrowLeft size={20} />
             </button>
-            <h1 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight">Checklist {activeCategory.title?.replace('\n', ' ')}</h1>
+            <h1 className="text-lg md:text-2xl font-black text-gray-900 tracking-tight truncate">Checklist {activeCategory.title?.replace('\n', ' ')}</h1>
           </div>
         </div>
         <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto">
@@ -235,8 +221,6 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
             checklist={activeCategory} 
             onStoreClick={(store) => { 
               setSelectedStore(store); 
-              
-              // PERBAIKAN LOGIKA PERCABANGAN ROUTING
               if (activeCategory.id === 3 || activeCategory.title.includes('Equipment')) {
                 setCurrentView('chillerForm');
               } else if (activeCategory.id === 4 || activeCategory.title.includes('Genset')) {
@@ -244,7 +228,6 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
               } else {
                 setCurrentView('fcptForm');
               }
-
             }} 
           />
         </div>
@@ -256,17 +239,33 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
   // VIEW 1: DASHBOARD UTAMA
   // -------------------------------------------------------------
   return (
-    <div className="flex h-screen bg-[#f4f7fb] overflow-hidden font-sans">
+    <div className="flex h-screen bg-[#f4f7fb] overflow-hidden font-sans relative">
       
-      {/* SIDEBAR */}
-      <aside className="w-72 bg-white border-r border-gray-200 flex flex-col shadow-sm z-20 flex-shrink-0">
-        <div className="px-5 py-3 border-b border-gray-100 flex flex-col gap-0.5">
+      {/* OVERLAY BACKGROUND MOBILE */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* SIDEBAR RESPONSIVE */}
+      <aside className={`fixed md:static inset-y-0 left-0 z-50 w-72 bg-white border-r border-gray-200 flex flex-col shadow-lg md:shadow-sm flex-shrink-0 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
           <NextImage src="/images/alfamidi-logo-white.png" alt="Alfamidi" width={90} height={50} className="object-contain" />
+          
+          {/* Tombol Tutup Sidebar untuk Mobile */}
+          <button 
+            onClick={() => setIsSidebarOpen(false)} 
+            className="p-2 md:hidden text-gray-400 hover:text-gray-700 bg-gray-50 rounded-lg"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         {/* KLIK PROFIL DIARAHKAN KE TAB 'Profiles' */}
         <div 
-          onClick={() => setActiveTab('Profiles')}
+          onClick={() => { setActiveTab('Profiles'); setIsSidebarOpen(false); }}
           className={`p-5 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition ${activeTab === 'Profiles' ? 'bg-gray-50' : ''}`}
         >
           <div className="flex items-center gap-4">
@@ -289,7 +288,7 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
             return (
               <button
                 key={item.name}
-                onClick={() => setActiveTab(item.name)}
+                onClick={() => { setActiveTab(item.name); setIsSidebarOpen(false); }}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
                   isActive ? 'bg-red-50 text-[#cc1e2c] font-bold shadow-sm border border-red-100' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium'
                 }`}
@@ -311,20 +310,29 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
       </aside>
 
       {/* AREA KONTEN UTAMA */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden bg-[#f4f7fb]">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden bg-[#f4f7fb] w-full">
         
         {/* HEADER */}
-        <header className="bg-white border-b border-gray-200 px-8 py-6 flex justify-between items-center z-10 shadow-sm relative">
-          <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold text-gray-800 tracking-tight">
+        <header className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 md:py-6 flex justify-between items-center z-10 shadow-sm relative">
+          <div className="flex items-center gap-3 md:gap-4">
+            
+            {/* Tombol Buka Sidebar untuk Mobile */}
+            <button 
+              onClick={() => setIsSidebarOpen(true)} 
+              className="p-2 md:hidden text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 rounded-lg transition"
+            >
+              <Menu size={24} />
+            </button>
+            
+            <h1 className="text-lg md:text-2xl font-bold text-gray-800 tracking-tight truncate">
               {activeTab === 'Profiles' ? 'Pengaturan Profil BMT' : 'Dashboard BMT'}
             </h1>
           </div>
           <div className="flex items-center gap-4">
             <div className="relative">
-              <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="p-3 bg-gray-50 text-gray-600 rounded-full hover:bg-gray-100 transition relative">
+              <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="p-2 md:p-3 bg-gray-50 text-gray-600 rounded-full hover:bg-gray-100 transition relative">
                 <Bell size={20} />
-                <span className="absolute top-2 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
+                <span className="absolute top-1.5 md:top-2 right-1.5 md:right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
               </button>
             </div>
           </div>
@@ -338,22 +346,22 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
               
               {/* --- TAB PROFIL --- */}
               {activeTab === 'Profiles' && (
-                <motion.div key="profile-tab" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-8 flex flex-col items-center">
-                  <div className="relative mb-8 group cursor-pointer">
-                    <div className="w-32 h-32 rounded-full border-4 border-white shadow-md overflow-hidden bg-slate-100 flex justify-center items-center">
+                <motion.div key="profile-tab" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-5 md:p-8 flex flex-col items-center">
+                  <div className="relative mb-6 md:mb-8 group cursor-pointer">
+                    <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-white shadow-md overflow-hidden bg-slate-100 flex justify-center items-center">
                       {profileImage ? (
                         <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
                       ) : (
                         <UserCircle size={64} className="text-slate-300" />
                       )}
                     </div>
-                    <label className="absolute bottom-0 right-0 bg-[#0c539a] text-white p-3 rounded-full shadow-lg cursor-pointer hover:bg-blue-800 transition-colors">
-                      <Camera size={18} />
+                    <label className="absolute bottom-0 right-0 bg-[#0c539a] text-white p-2 md:p-3 rounded-full shadow-lg cursor-pointer hover:bg-blue-800 transition-colors">
+                      <Camera size={16} className="md:w-[18px] md:h-[18px]" />
                       <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                     </label>
                   </div>
 
-                  <div className="w-full space-y-5">
+                  <div className="w-full space-y-4 md:space-y-5">
                     <div className="space-y-1.5">
                       <label className="block text-gray-500 font-bold text-xs uppercase tracking-wider">NIK Karyawan</label>
                       <input type="text" disabled value={nik} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-700 font-medium cursor-not-allowed" />
@@ -372,7 +380,7 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
                     </div>
                   </div>
 
-                  <button onClick={handleSaveProfile} disabled={isSaving} className="w-full bg-[#cc1e2c] text-white font-bold py-3.5 rounded-xl mt-8 shadow-md shadow-red-500/20 hover:bg-red-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                  <button onClick={handleSaveProfile} disabled={isSaving} className="w-full bg-[#cc1e2c] text-white font-bold py-3.5 rounded-xl mt-6 md:mt-8 shadow-md shadow-red-500/20 hover:bg-red-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                     {isSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
                   </button>
                 </motion.div>
@@ -386,11 +394,11 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
                     {defaultChecklists.map((item) => (
                       <motion.div 
                         key={item.id} whileHover={{ y: -3 }} whileTap={{ scale: 0.98 }}
-                        className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-center items-center text-center cursor-pointer group"
+                        className="bg-white border border-gray-200 rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-center items-center text-center cursor-pointer group"
                         onClick={() => { setActiveCategory(item); setCurrentView('storeList'); }}
                       >
-                        <div className="p-4 bg-red-50/70 rounded-2xl mb-4 group-hover:scale-110 transition-transform">{item.icon}</div>
-                        <span className="font-extrabold text-sm md:text-base text-gray-800 whitespace-pre-line leading-snug">{item.title}</span>
+                        <div className="p-3 md:p-4 bg-red-50/70 rounded-2xl mb-3 md:mb-4 group-hover:scale-110 transition-transform">{item.icon}</div>
+                        <span className="font-extrabold text-xs md:text-base text-gray-800 whitespace-pre-line leading-snug">{item.title}</span>
                       </motion.div>
                     ))}
                   </div>
@@ -400,20 +408,20 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
               {/* --- TAB MODUL --- */}
               {activeTab === 'Modul' && (
                 <motion.div key="modul-tab" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-                  <div className="mb-8">
+                  <div className="mb-6 md:mb-8">
                     <div className="relative max-w-md">
                       <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                      <input type="text" placeholder="Cari modul..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white border border-gray-200 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-800 shadow-sm" />
+                      <input type="text" placeholder="Cari modul..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-white border border-gray-200 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-800 shadow-sm text-sm md:text-base" />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
                     {modules.filter((m) => m.title?.toLowerCase().includes(searchQuery.toLowerCase())).map((item) => {
                       const isDisabled = item.is_disabled
                       return (
                         <motion.div key={item.id} className="flex flex-col">
-                          <motion.a href={isDisabled ? undefined : item.pdf_url} target={isDisabled ? undefined : '_blank'} rel="noopener noreferrer" className={`w-full aspect-square bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col justify-center items-center p-6 relative overflow-hidden group transition-all duration-300 ${isDisabled ? 'opacity-50 grayscale cursor-not-allowed' : ''}`} onClick={(e) => { if (isDisabled || !item.pdf_url) e.preventDefault() }}>
-                            {item.icon_url ? <img src={item.icon_url} alt={item.title} className="w-16 h-16 mb-4 object-contain transition-transform group-hover:scale-110 duration-300" /> : <FileText size={48} className="text-[#cc1e2c] mb-4" />}
-                            <span className={`font-bold text-sm text-center whitespace-pre-line mt-2 ${isDisabled ? 'text-gray-500' : 'text-gray-700'}`}>{item.title}</span>
+                          <motion.a href={isDisabled ? undefined : item.pdf_url} target={isDisabled ? undefined : '_blank'} rel="noopener noreferrer" className={`w-full aspect-square bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col justify-center items-center p-4 md:p-6 relative overflow-hidden group transition-all duration-300 ${isDisabled ? 'opacity-50 grayscale cursor-not-allowed' : ''}`} onClick={(e) => { if (isDisabled || !item.pdf_url) e.preventDefault() }}>
+                            {item.icon_url ? <img src={item.icon_url} alt={item.title} className="w-12 h-12 md:w-16 md:h-16 mb-3 md:mb-4 object-contain transition-transform group-hover:scale-110 duration-300" /> : <FileText size={48} className="text-[#cc1e2c] mb-3 md:mb-4 w-10 h-10 md:w-12 md:h-12" />}
+                            <span className={`font-bold text-xs md:text-sm text-center whitespace-pre-line mt-1 md:mt-2 ${isDisabled ? 'text-gray-500' : 'text-gray-700'}`}>{item.title}</span>
                           </motion.a>
                         </motion.div>
                       )

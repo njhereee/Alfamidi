@@ -12,13 +12,17 @@ import {
   Loader2,
   Building2,
   Snowflake,
-  Zap,
-  CheckCircle2,
-  AlertTriangle,
-  XCircle
+  Zap
 } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+
+// Menggabungkan props data dengan filterType dari BMTDashboard
+interface BMTRekapDetailViewProps {
+  data: any; 
+  filterType: string; // 'Semua' | 'FCPT' | 'Chiller' | 'Genset'
+  onBack: () => void;
+}
 
 // ─── TEMPLATE FORM FCPT (A - J Categories) ───────────────────────────────────
 const formDataTemplate = [
@@ -116,7 +120,7 @@ function StatusBadge({ status }: { status: string }) {
     styles = 'bg-emerald-100 text-emerald-700 border-emerald-200'
   } else if (val.includes('DAPAT DIGUNAKAN') || val.includes('PERLU PERBAIKAN') || val.includes('SEDANG')) {
     styles = 'bg-amber-100 text-amber-700 border-amber-200'
-  } else if (val.includes('TIDAK DAPAT') || val.includes('RUSAK') || val.includes('MATI')) {
+  } else if (val.includes('TIDAK DAPAT') || val.includes('RUSAK') || val.includes('MATI') || val.includes('NOK')) {
     styles = 'bg-red-100 text-red-700 border-red-200'
   }
 
@@ -187,8 +191,7 @@ function CategoryAccordion({ cat }: { cat: any }) {
   )
 }
 
-export default function BMTRekapDetailView({ data, onBack }: { data: any, onBack: () => void }) {
-  const [activeTab, setActiveTab] = useState<'fcpt' | 'chiller' | 'genset'>('fcpt')
+export default function BMTRekapDetailView({ data, filterType, onBack }: BMTRekapDetailViewProps) {
   const [loading, setLoading] = useState(true)
   const [isExporting, setIsExporting] = useState(false)
 
@@ -198,6 +201,29 @@ export default function BMTRekapDetailView({ data, onBack }: { data: any, onBack
   const [chillerItems, setChillerItems] = useState<any[]>([])
   const [gensetData, setGensetData] = useState<any>(null)
   const [gensetItems, setGensetItems] = useState<any[]>([])
+
+  // Filter Logika Tab
+  const availableTabs = useMemo(() => {
+    const tabs = [];
+    if (!filterType || filterType === 'Semua' || filterType === 'FCPT') {
+      tabs.push({ id: 'fcpt', label: 'Bangunan (FCPT)' });
+    }
+    if (!filterType || filterType === 'Semua' || filterType === 'Chiller') {
+      tabs.push({ id: 'chiller', label: 'Equipment Pendingin' });
+    }
+    if (!filterType || filterType === 'Semua' || filterType === 'Genset') {
+      tabs.push({ id: 'genset', label: 'Genset' });
+    }
+    return tabs;
+  }, [filterType]);
+
+  const [activeTab, setActiveTab] = useState(availableTabs[0]?.id || 'fcpt');
+
+  useEffect(() => {
+    if (availableTabs.length > 0 && !availableTabs.some(t => t.id === activeTab)) {
+      setActiveTab(availableTabs[0].id);
+    }
+  }, [filterType, availableTabs, activeTab]);
 
   useEffect(() => {
     const fetchAllData = async () => {
@@ -230,7 +256,7 @@ export default function BMTRekapDetailView({ data, onBack }: { data: any, onBack
         const { data: chillerSub } = await supabase
           .from('chiller_submissions')
           .select('*')
-          .eq('kode_toko', storeKode)
+          .eq('store_kode', storeKode)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle()
@@ -248,7 +274,7 @@ export default function BMTRekapDetailView({ data, onBack }: { data: any, onBack
         const { data: gSub } = await supabase
           .from('genset_submissions')
           .select('*')
-          .eq('kode_toko', storeKode)
+          .eq('store_kode', storeKode)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle()
@@ -346,7 +372,6 @@ export default function BMTRekapDetailView({ data, onBack }: { data: any, onBack
     }
   }
 
-  /** Muat gambar via fetch+blob agar canvas tidak kena CORS/tainted (umum di Supabase Storage). */
   const loadImageForPdf = async (url: string): Promise<PdfLoadedImage | null> => {
     const preferPng = url.toLowerCase().includes('.png')
 
@@ -379,7 +404,6 @@ export default function BMTRekapDetailView({ data, onBack }: { data: any, onBack
     }
   }
 
-  /** Ukuran gambar di PDF (mm) — proporsi asli, tidak distretch */
   const fitImageMm = (
     pixelW: number,
     pixelH: number,
@@ -692,44 +716,54 @@ export default function BMTRekapDetailView({ data, onBack }: { data: any, onBack
           </div>
         </div>
 
-        {/* TAB SWITCHER */}
-        <div className="flex rounded-2xl bg-gray-200/80 p-1.5 gap-1.5 border border-gray-200 shadow-inner">
-          <button
-            onClick={() => setActiveTab('fcpt')}
-            className={`flex-1 py-3 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
-              activeTab === 'fcpt'
-                ? 'bg-white text-[#0c539a] shadow-sm'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
-            }`}
-          >
-            <Building2 size={16} />
-            <span>Bangunan (FCPT)</span>
-          </button>
+        {/* TAB SWITCHER (Dinamis berdasarkan availableTabs) */}
+        {availableTabs.length > 1 && (
+          <div className="flex rounded-2xl bg-gray-200/80 p-1.5 gap-1.5 border border-gray-200 shadow-inner">
+            {availableTabs.some(t => t.id === 'fcpt') && (
+              <button
+                onClick={() => setActiveTab('fcpt')}
+                className={`flex-1 py-3 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+                  activeTab === 'fcpt'
+                    ? 'bg-white text-[#0c539a] shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                }`}
+              >
+                <Building2 size={16} />
+                <span className="hidden sm:inline">Bangunan (FCPT)</span>
+                <span className="sm:hidden">FCPT</span>
+              </button>
+            )}
 
-          <button
-            onClick={() => setActiveTab('chiller')}
-            className={`flex-1 py-3 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
-              activeTab === 'chiller'
-                ? 'bg-white text-[#0c539a] shadow-sm'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
-            }`}
-          >
-            <Snowflake size={16} />
-            <span>Eq. Pendingin</span>
-          </button>
+            {availableTabs.some(t => t.id === 'chiller') && (
+              <button
+                onClick={() => setActiveTab('chiller')}
+                className={`flex-1 py-3 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+                  activeTab === 'chiller'
+                    ? 'bg-white text-[#0c539a] shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                }`}
+              >
+                <Snowflake size={16} />
+                <span className="hidden sm:inline">Eq. Pendingin</span>
+                <span className="sm:hidden">Chiller</span>
+              </button>
+            )}
 
-          <button
-            onClick={() => setActiveTab('genset')}
-            className={`flex-1 py-3 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
-              activeTab === 'genset'
-                ? 'bg-white text-[#0c539a] shadow-sm'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
-            }`}
-          >
-            <Zap size={16} />
-            <span>Genset</span>
-          </button>
-        </div>
+            {availableTabs.some(t => t.id === 'genset') && (
+              <button
+                onClick={() => setActiveTab('genset')}
+                className={`flex-1 py-3 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+                  activeTab === 'genset'
+                    ? 'bg-white text-[#0c539a] shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                }`}
+              >
+                <Zap size={16} />
+                <span>Genset</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* TAB CONTENT 1: FCPT / BANGUNAN */}
         {activeTab === 'fcpt' && (
@@ -799,58 +833,46 @@ export default function BMTRekapDetailView({ data, onBack }: { data: any, onBack
                       </p>
                     </div>
                     <div>
-                      <p className="text-gray-400 font-bold uppercase">Status Unit</p>
-                      <div className="mt-0.5"><StatusBadge status={chillerData.status_unit || '-'} /></div>
-                    </div>
-                    <div>
                       <p className="text-gray-400 font-bold uppercase">Status Tagging</p>
-                      <p className="font-bold text-gray-800 mt-0.5">{chillerData.status_tagging || '-'}</p>
+                      <p className="font-bold text-gray-800 text-sm mt-0.5">
+                        {chillerData.status_tagging || '-'}
+                      </p>
                     </div>
                   </div>
-
-                  {chillerData.keterangan_unit && (
-                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 text-xs">
-                      <span className="font-bold text-gray-700">Catatan Unit: </span>
-                      <span className="text-gray-600">{chillerData.keterangan_unit}</span>
-                    </div>
-                  )}
-
-                  {chillerData.foto_unit_url && (
-                    <div className="pt-2">
-                      <p className="text-xs text-gray-400 font-bold uppercase mb-2">Foto Unit Utama</p>
-                      <img src={chillerData.foto_unit_url} alt="Foto Unit Chiller" className="w-full max-w-sm rounded-xl border border-gray-200 object-cover max-h-56" />
-                    </div>
-                  )}
                 </div>
 
-                {/* Detail Item Checklist Chiller */}
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-                  <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
-                    <h4 className="font-bold text-xs uppercase text-gray-600 tracking-wider">Item Pengecekan Equipment Pendingin</h4>
-                  </div>
-                  <div className="divide-y divide-gray-100">
-                    {chillerItems.length === 0 ? (
-                      <p className="p-5 text-xs text-gray-400 text-center">Tidak ada item detail tercatat.</p>
-                    ) : (
-                      chillerItems.map((item, idx) => (
-                        <div key={item.id || idx} className="p-5 space-y-3 hover:bg-gray-50 transition-colors">
-                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                            <p className="font-bold text-gray-800 text-sm flex-1">
-                              {item.item_label || item.item_id}
-                            </p>
-                            <div className="shrink-0 flex items-center gap-2">
+                {/* List Item Chiller */}
+                {chillerItems.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
+                    <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                      <h4 className="font-bold text-gray-800">Detail Pengecekan Item</h4>
+                    </div>
+                    <div className="divide-y divide-gray-100">
+                      {chillerItems.map((item, idx) => (
+                        <div key={idx} className="p-6 space-y-3 hover:bg-gray-50 transition-colors">
+                          <div className="flex flex-col sm:flex-row justify-between gap-2">
+                            <p className="font-bold text-sm text-gray-800">{item.item_label || `Item ${idx + 1}`}</p>
+                            <div className="shrink-0">
                               <StatusBadge status={item.kondisi} />
-                              <span className="text-xs font-bold text-gray-400">Skor: {item.skor ?? 0}</span>
                             </div>
                           </div>
+                          
+                          {item.keterangan && (
+                            <div className="bg-gray-50/50 p-3 rounded-lg border border-gray-100">
+                              <p className="text-gray-600 text-sm"><span className="font-bold text-gray-700">Ket:</span> {item.keterangan}</p>
+                            </div>
+                          )}
+                          
                           {item.foto_url && (
-                            <img src={item.foto_url} alt="Foto Item" className="w-full max-w-xs rounded-lg border border-gray-200 max-h-48 object-cover" />
+                            <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-100 relative max-w-sm mt-2">
+                              <img src={item.foto_url} alt="Foto Chiller" className="w-full h-auto object-cover max-h-[250px]" loading="lazy" />
+                            </div>
                           )}
                         </div>
-                      ))
-                    )}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             )}
           </div>
@@ -863,7 +885,7 @@ export default function BMTRekapDetailView({ data, onBack }: { data: any, onBack
               <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-300 p-6">
                 <Zap size={36} className="mx-auto text-gray-300 mb-2" />
                 <p className="text-gray-500 font-bold text-sm">Belum Ada Data Genset</p>
-                <p className="text-gray-400 text-xs mt-1">Checklist genset belum diisi untuk toko ini.</p>
+                <p className="text-gray-400 text-xs mt-1">Checklist dan inspeksi genset belum dilakukan untuk toko ini.</p>
               </div>
             ) : (
               <>
@@ -872,10 +894,9 @@ export default function BMTRekapDetailView({ data, onBack }: { data: any, onBack
                   <div className="flex justify-between items-start border-b border-gray-100 pb-4">
                     <div>
                       <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-md uppercase">
-                        {gensetData.jenis_genset || 'Genset'}
+                        {gensetData.jenis_genset || 'Genset Standar'}
                       </span>
-                      <h3 className="text-lg font-black text-gray-800 mt-2">{gensetData.merk_model || 'Merk Tidak Tercatat'}</h3>
-                      <p className="text-xs text-gray-400 font-medium mt-0.5">No. Genset: {gensetData.no_genset || '-'}</p>
+                      <h3 className="text-lg font-black text-gray-800 mt-2">{gensetData.merk_mesin || 'Merk Tidak Tercatat'}</h3>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-gray-400 uppercase font-bold">Nilai Akhir</p>
@@ -883,58 +904,54 @@ export default function BMTRekapDetailView({ data, onBack }: { data: any, onBack
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
+                    <div>
+                      <p className="text-gray-400 font-bold uppercase">Status Pemanasan</p>
+                      <p className="font-bold text-gray-800 text-sm mt-0.5">
+                        {gensetData.pemanasan_unit || '-'}
+                      </p>
+                    </div>
                     <div>
                       <p className="text-gray-400 font-bold uppercase">Status Unit</p>
-                      <div className="mt-0.5"><StatusBadge status={gensetData.status_unit || '-'} /></div>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 font-bold uppercase">Pemanasan Unit</p>
-                      <p className="font-bold text-gray-800 mt-0.5">{gensetData.pemanasan_unit || '-'}</p>
+                      <p className="font-bold text-gray-800 text-sm mt-0.5">
+                        {gensetData.status_unit || '-'}
+                      </p>
                     </div>
                   </div>
-
-                  {gensetData.keterangan_unit && (
-                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 text-xs">
-                      <span className="font-bold text-gray-700">Catatan Unit: </span>
-                      <span className="text-gray-600">{gensetData.keterangan_unit}</span>
-                    </div>
-                  )}
                 </div>
 
-                {/* Detail Item Checklist Genset */}
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-                  <div className="bg-gray-50 px-5 py-3 border-b border-gray-200">
-                    <h4 className="font-bold text-xs uppercase text-gray-600 tracking-wider">Item Pengecekan Genset</h4>
-                  </div>
-                  <div className="divide-y divide-gray-100">
-                    {gensetItems.length === 0 ? (
-                      <p className="p-5 text-xs text-gray-400 text-center">Tidak ada item detail tercatat.</p>
-                    ) : (
-                      gensetItems.map((item, idx) => (
-                        <div key={item.id || idx} className="p-5 space-y-3 hover:bg-gray-50 transition-colors">
-                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                            <p className="font-bold text-gray-800 text-sm flex-1">
-                              {item.item_label || item.item_id}
-                            </p>
-                            <div className="shrink-0 flex items-center gap-2">
+                {/* List Item Genset */}
+                {gensetItems.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
+                    <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                      <h4 className="font-bold text-gray-800">Detail Pengecekan Item</h4>
+                    </div>
+                    <div className="divide-y divide-gray-100">
+                      {gensetItems.map((item, idx) => (
+                        <div key={idx} className="p-6 space-y-3 hover:bg-gray-50 transition-colors">
+                          <div className="flex flex-col sm:flex-row justify-between gap-2">
+                            <p className="font-bold text-sm text-gray-800">{item.item_label || `Item ${idx + 1}`}</p>
+                            <div className="shrink-0">
                               <StatusBadge status={item.kondisi} />
-                              <span className="text-xs font-bold text-gray-400">Skor: {item.skor ?? 0}</span>
                             </div>
                           </div>
+                          
                           {item.keterangan && (
-                            <p className="text-xs text-gray-600 bg-gray-50 p-2.5 rounded-lg border border-gray-100">
-                              <span className="font-bold text-gray-700">Ket:</span> {item.keterangan}
-                            </p>
+                            <div className="bg-gray-50/50 p-3 rounded-lg border border-gray-100">
+                              <p className="text-gray-600 text-sm"><span className="font-bold text-gray-700">Ket:</span> {item.keterangan}</p>
+                            </div>
                           )}
+                          
                           {item.foto_url && (
-                            <img src={item.foto_url} alt="Foto Item Genset" className="w-full max-w-xs rounded-lg border border-gray-200 max-h-48 object-cover" />
+                            <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-100 relative max-w-sm mt-2">
+                              <img src={item.foto_url} alt="Foto Genset" className="w-full h-auto object-cover max-h-[250px]" loading="lazy" />
+                            </div>
                           )}
                         </div>
-                      ))
-                    )}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             )}
           </div>

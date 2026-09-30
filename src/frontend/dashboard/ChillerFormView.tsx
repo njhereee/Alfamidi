@@ -149,7 +149,7 @@ export default function ChillerFormView({
         .insert([{
           nik: userNik,
           nama_pic: userNama,
-          kode_toko: store?.kode,
+          store_kode: store?.kode,
           nama_toko: store?.nama,
           kode_branch: store?.branch_code || '',
           nama_branch: store?.branch_name || '',

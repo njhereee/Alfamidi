@@ -108,10 +108,16 @@ let merged: Store[] = []
 if (isChillerChecklist) {
   const { data: submissions, error: subError } = await supabase
     .from('chiller_submissions')
-    .select('kode_toko, jenis_mesin, submitted_at, created_at')
+    .select('store_kode, jenis_mesin, submitted_at, created_at')
 
   if (subError) {
-    console.error('Gagal fetch tabel chiller_submissions:', subError)
+    console.error(
+      'Gagal fetch tabel chiller_submissions:',
+      subError.message,
+      subError.details,
+      subError.hint,
+      subError.code
+    )
   }
 
   const progressByStore: Record<
@@ -120,7 +126,7 @@ if (isChillerChecklist) {
   > = {}
 
   submissions?.forEach((s) => {
-    const kode = s.kode_toko
+    const kode = s.store_kode
     if (!kode) return
     if (!progressByStore[kode]) {
       progressByStore[kode] = { types: new Set(), latestAt: null }
