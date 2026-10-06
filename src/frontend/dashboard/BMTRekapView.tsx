@@ -51,11 +51,14 @@ interface BMTRekapViewProps {
   metadata?: any
   onSelectDetail?: (item: any, recapType?: string) => void
   onViewDetail?: (item: any, recapType?: string) => void
+  defaultRecapType?: RecapType
 }
 
-export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDetail }: BMTRekapViewProps) {
+export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDetail, defaultRecapType }: BMTRekapViewProps) {
   // Filter States
-  const [recapType, setRecapType] = useState<RecapType>('fcpt')
+  const [recapType, setRecapType] = useState<RecapType>(defaultRecapType || 'fcpt')
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [filterTanggal, setFilterTanggal] = useState('')
   const [filterKodeToko, setFilterKodeToko] = useState('')
   const [filterStatus, setFilterStatus] = useState('all') // 'all' | 'done' | 'pending'
@@ -132,12 +135,26 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
           .from('stores')
           .select('id, kode, nama, branch, nama_bmt, nik_bmt')
 
-        if (userNik && userName) {
-          storeQuery = storeQuery.or(`nik_bmt.eq."${userNik}",nama_bmt.ilike."%${userName}%"`)
-        } else if (userNik) {
-          storeQuery = storeQuery.eq('nik_bmt', userNik)
-        } else if (userName) {
-          storeQuery = storeQuery.ilike('nama_bmt', `%${userName}%`)
+        if (metadata?.role === 'bmt' || !metadata?.role) {
+          if (userNik && userName) {
+            storeQuery = storeQuery.or(`nik_bmt.eq."${userNik}",nama_bmt.ilike."%${userName}%"`)
+          } else if (userNik) {
+            storeQuery = storeQuery.eq('nik_bmt', userNik)
+          } else if (userName) {
+            storeQuery = storeQuery.ilike('nama_bmt', `%${userName}%`)
+          }
+        } else if (metadata?.role === 'koordinator_cabang' || metadata?.role === 'manager_cabang') {
+          if (userNik && userName) {
+            storeQuery = storeQuery.or(`nik_coordinator.eq."${userNik}",nama_coordinator.ilike."%${userName}%"`)
+          } else if (userNik) {
+            storeQuery = storeQuery.eq('nik_coordinator', userNik)
+          } else if (userName) {
+            storeQuery = storeQuery.ilike('nama_coordinator', `%${userName}%`)
+          } else if (metadata?.cabang) {
+            storeQuery = storeQuery.eq('branch', metadata.cabang)
+          }
+        } else if (metadata?.role !== 'ho' && metadata?.cabang) {
+          storeQuery = storeQuery.eq('branch', metadata.cabang)
         }
 
         const { data: storesData, error: storesError } = await storeQuery.order('kode', { ascending: true })
@@ -169,19 +186,28 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
 
         setStoreBases(bases)
 
+        const startDate = new Date(selectedYear, selectedMonth - 1, 1).toISOString()
+        const endDate = new Date(selectedYear, selectedMonth, 1).toISOString()
+
         const [fcptRes, chillerRes, gensetRes] = await Promise.all([
           supabase
             .from('view_rekap_fcpt')
             .select('store_kode, submitted_at, nilai_akhir, jml_terceklist')
-            .in('store_kode', storeCodes),
+            .in('store_kode', storeCodes)
+            .gte('submitted_at', startDate)
+            .lt('submitted_at', endDate),
           supabase
             .from('chiller_submissions')
             .select('store_kode, jenis_mesin, submitted_at, created_at, nilai_akhir')
-            .in('store_kode', storeCodes),
+            .in('store_kode', storeCodes)
+            .gte('created_at', startDate)
+            .lt('created_at', endDate),
           supabase
             .from('genset_submissions')
             .select('store_kode, submitted_at, created_at, nilai_akhir')
-            .in('store_kode', storeCodes),
+            .in('store_kode', storeCodes)
+            .gte('created_at', startDate)
+            .lt('created_at', endDate),
         ])
 
         if (fcptRes.error) {
@@ -242,7 +268,7 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
     }
 
     fetchBMTData()
-  }, [nik, metadata])
+  }, [nik, metadata, selectedMonth, selectedYear])
 
   // Filter Lokal berdasarkan Tanggal, Kode Toko, dan Status Inspection
   const filteredData = useMemo(() => {
@@ -282,19 +308,16 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
 
   // Pie Chart Data
   const pieChartData = useMemo(() => {
-    const doneStores = filteredData.filter(d => d.isDone)
-    const totalDone = doneStores.length || 1
-    const pieMap: Record<string, number> = {}
-
-    doneStores.forEach(d => {
-      pieMap[d.branch] = (pieMap[d.branch] || 0) + 1
-    })
-
-    return Object.keys(pieMap).map(branch => ({
-      name: branch,
-      value: Number(((pieMap[branch] / totalDone) * 100).toFixed(1))
-    })).sort((a, b) => b.value - a.value)
-  }, [filteredData])
+    if (totalTokoPegangan === 0) return []
+    
+    const percentageDone = Number(((kpiTerceklist / totalTokoPegangan) * 100).toFixed(1))
+    const percentagePending = Number((((totalTokoPegangan - kpiTerceklist) / totalTokoPegangan) * 100).toFixed(1))
+    
+    return [
+      { name: 'Sudah Dicek', value: percentageDone, fill: '#0c539a' },
+      { name: 'Belum Dicek', value: percentagePending, fill: '#cc1e2c' }
+    ].filter(item => item.value > 0)
+  }, [kpiTerceklist, totalTokoPegangan])
 
   // Handler Kirim Detail dengan Status recapType & filterType
   const handleSelectDetail = (item: StoreData) => {
@@ -357,6 +380,26 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
               </span>
               <span>Area BMT</span>
             </h2>
+            <div className="flex items-center gap-2 mt-3">
+              <select 
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                className="appearance-none bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-bold text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#0c539a]"
+              >
+                {['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m, i) => (
+                  <option key={m} value={i + 1}>{m}</option>
+                ))}
+              </select>
+              <select 
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="appearance-none bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-bold text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#0c539a]"
+              >
+                {[2024, 2025, 2026, 2027].map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
             <p className="text-xs text-gray-500 font-medium mt-1">
               Menampilkan {totalTokoPegangan} toko yang ditugaskan kepada Anda.
               {recapType === 'chiller' && (
@@ -446,7 +489,7 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
                       label={({ percent }) => `${((percent || 0) * 100).toFixed(0)}%`}
                     >
                       {pieChartData.map((entry, index) => (
-                        <ReCell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <ReCell key={`cell-${index}`} fill={entry.fill} />
                       ))}
                     </RePie>
                     <RechartsTooltipComponent formatter={(value) => `${value}%`} />

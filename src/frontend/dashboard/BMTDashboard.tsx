@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Home, 
@@ -16,18 +16,24 @@ import {
   Bell,
   Search,
   Camera,
-  Menu, // Tambahan Icon
-  X     // Tambahan Icon
+  Menu,
+  X,
+  Share2,
+  Printer,
+  Loader2
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import NextImage from 'next/image'
+import { ThemeToggleInline } from '@/components/ThemeToggle'
 
 // Import View yang terhubung dengan Supabase
 import ChecklistDetailView from './ChecklistDetailView'
 import FCPTFormView from './FCPTFormView'
 import BMTRekapView from './BMTRekapView'
+import BMTRekapDetailView from './BMTRekapDetailView'
 import ChillerFormView from './ChillerFormView'
 import GensetFormView from './GensetFormView'
+import DPMFormView from './DPMFormView'
 
 const defaultChecklists = [
   { id: 1, title: 'DPM', icon: <FileText size={36} className="text-[#cc1e2c] mb-3" />, hasActions: false },
@@ -41,8 +47,14 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
   
   // State Navigasi
   const [activeTab, setActiveTab] = useState<'Home' | 'Profiles' | 'Modul' | 'Rekap'>('Home')
-  const [currentView, setCurrentView] = useState<'dashboard' | 'storeList' | 'fcptForm' | 'chillerForm' | 'gensetForm'>('dashboard')
+  const [currentView, setCurrentView] = useState<'dashboard' | 'storeList' | 'fcptForm' | 'chillerForm' | 'gensetForm' | 'dpmForm'>('dashboard')
   
+  // State Rekap Detail — diangkat ke sini agar tombol back/share/export bisa di header utama
+  const [rekapDetail, setRekapDetail] = useState<{ item: any; filterType: string } | null>(null)
+  const [isExportingPdf, setIsExportingPdf] = useState(false)
+  const exportFnRef = useRef<(() => Promise<void>) | null>(null)
+  const shareFnRef = useRef<(() => void) | null>(null)
+
   // State Kategori & Toko Terpilih
   const [activeCategory, setActiveCategory] = useState<any>(null)
   const [selectedStore, setSelectedStore] = useState<any>(null)
@@ -158,13 +170,19 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
   // -------------------------------------------------------------
   if (currentView === 'gensetForm' && selectedStore) {
     return (
-      <div className="min-h-screen bg-[#f4f7fb] pb-12 font-sans">
-        {/* Konten view tetap sama */}
-        <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 flex items-center justify-between shadow-sm sticky top-0 z-20">
-          <button onClick={() => setCurrentView('storeList')} className="flex items-center gap-2 text-gray-700 hover:text-[#cc1e2c] font-bold text-sm transition-colors">
-            <ArrowLeft size={20} /><span>Kembali</span>
+      <div className="min-h-screen bg-[#f4f7fb] dark:bg-slate-950 pb-12 font-sans">
+        <div className="bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 px-4 md:px-8 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-20">
+          <button
+            onClick={() => setCurrentView('storeList')}
+            className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-300 transition-colors flex-shrink-0"
+          >
+            <ArrowLeft size={16} />
           </button>
-          <span className="font-extrabold text-gray-800 text-sm truncate ml-4">{activeCategory?.title?.replace('\n', ' ')} - {selectedStore.kode}</span>
+          <span className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate">
+            {activeCategory?.title?.replace('\n', ' ')}
+            <span className="text-gray-400 dark:text-slate-500 font-normal mx-1.5">·</span>
+            <span className="text-[#cc1e2c]">{selectedStore.kode}</span>
+          </span>
         </div>
         <div className="p-4 md:p-8">
           <GensetFormView store={selectedStore} userNik={nik} userNama={fullName} onBack={() => setCurrentView('storeList')} />
@@ -175,12 +193,19 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
 
   if (currentView === 'chillerForm' && selectedStore) {
     return (
-      <div className="min-h-screen bg-[#f4f7fb] pb-12 font-sans">
-        <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 flex items-center justify-between shadow-sm sticky top-0 z-20">
-          <button onClick={() => setCurrentView('storeList')} className="flex items-center gap-2 text-gray-700 hover:text-[#cc1e2c] font-bold text-sm transition-colors">
-            <ArrowLeft size={20} /><span>Kembali</span>
+      <div className="min-h-screen bg-[#f4f7fb] dark:bg-slate-950 pb-12 font-sans">
+        <div className="bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 px-4 md:px-8 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-20">
+          <button
+            onClick={() => setCurrentView('storeList')}
+            className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-300 transition-colors flex-shrink-0"
+          >
+            <ArrowLeft size={16} />
           </button>
-          <span className="font-extrabold text-gray-800 text-sm truncate ml-4">{activeCategory?.title?.replace('\n', ' ')} - {selectedStore.kode}</span>
+          <span className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate">
+            {activeCategory?.title?.replace('\n', ' ')}
+            <span className="text-gray-400 dark:text-slate-500 font-normal mx-1.5">·</span>
+            <span className="text-[#cc1e2c]">{selectedStore.kode}</span>
+          </span>
         </div>
         <div className="p-4 md:p-8">
           <ChillerFormView store={selectedStore} userNik={nik} userNama={fullName} onBack={() => setCurrentView('storeList')} />
@@ -191,12 +216,19 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
 
   if (currentView === 'fcptForm' && selectedStore) {
     return (
-      <div className="min-h-screen bg-[#f4f7fb] pb-12 font-sans">
-        <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 flex items-center justify-between shadow-sm sticky top-0 z-20">
-          <button onClick={() => setCurrentView('storeList')} className="flex items-center gap-2 text-gray-700 hover:text-[#cc1e2c] font-bold text-sm transition-colors">
-            <ArrowLeft size={20} /><span>Kembali</span>
+      <div className="min-h-screen bg-[#f4f7fb] dark:bg-slate-950 pb-12 font-sans">
+        <div className="bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 px-4 md:px-8 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-20">
+          <button
+            onClick={() => setCurrentView('storeList')}
+            className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-300 transition-colors flex-shrink-0"
+          >
+            <ArrowLeft size={16} />
           </button>
-          <span className="font-extrabold text-gray-800 text-sm truncate ml-4">{activeCategory?.title} - {selectedStore.kode}</span>
+          <span className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate">
+            {activeCategory?.title}
+            <span className="text-gray-400 dark:text-slate-500 font-normal mx-1.5">·</span>
+            <span className="text-[#cc1e2c]">{selectedStore.kode}</span>
+          </span>
         </div>
         <div className="p-4 md:p-8">
           <FCPTFormView store={selectedStore} onBack={() => setCurrentView('storeList')} />
@@ -205,16 +237,47 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
     )
   }
 
+  if (currentView === 'dpmForm' && selectedStore) {
+    return (
+      <div className="min-h-screen bg-[#f4f7fb] dark:bg-slate-950 pb-12 font-sans">
+        <div className="bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 px-4 md:px-8 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-20">
+          <button
+            onClick={() => setCurrentView('storeList')}
+            className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-300 transition-colors flex-shrink-0"
+          >
+            <ArrowLeft size={16} />
+          </button>
+          <span className="font-bold text-gray-800 dark:text-gray-100 text-sm truncate">
+            {activeCategory?.title}
+            <span className="text-gray-400 dark:text-slate-500 font-normal mx-1.5">·</span>
+            <span className="text-[#cc1e2c]">{selectedStore.kode}</span>
+          </span>
+        </div>
+        <div className="p-4 md:p-8">
+          <DPMFormView 
+            store={selectedStore} 
+            userNik={nik} 
+            userNama={fullName} 
+            onBack={() => setCurrentView('storeList')} 
+          />
+        </div>
+      </div>
+    )
+  }
+
   if (currentView === 'storeList' && activeCategory) {
     return (
-      <div className="min-h-screen bg-[#f8f9fa] flex flex-col font-sans">
-        <div className="bg-white px-4 py-4 md:px-8 border-b border-gray-200 flex items-center justify-between sticky top-0 z-20">
-          <div className="flex items-center gap-3 md:gap-4">
-            <button onClick={() => { setCurrentView('dashboard'); setActiveCategory(null); }} className="w-10 h-10 flex items-center justify-center border border-gray-200 rounded-full hover:bg-gray-50 transition-colors text-gray-600 flex-shrink-0">
-              <ArrowLeft size={20} />
-            </button>
-            <h1 className="text-lg md:text-2xl font-black text-gray-900 tracking-tight truncate">Checklist {activeCategory.title?.replace('\n', ' ')}</h1>
-          </div>
+      <div className="min-h-screen bg-[#f8f9fa] dark:bg-slate-950 flex flex-col font-sans">
+        <div className="bg-white dark:bg-slate-900 px-4 py-3 md:px-8 border-b border-gray-100 dark:border-slate-800 flex items-center gap-3 sticky top-0 z-20 shadow-sm">
+          <button
+            onClick={() => { setCurrentView('dashboard'); setActiveCategory(null); }}
+            className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-600 dark:text-gray-300 transition-colors flex-shrink-0"
+          >
+            <ArrowLeft size={16} />
+          </button>
+          <h1 className="text-base md:text-lg font-bold text-gray-900 dark:text-gray-100 tracking-tight truncate">
+            Checklist {activeCategory.title?.replace('\n', ' ')}
+          </h1>
         </div>
         <div className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto">
           <ChecklistDetailView 
@@ -225,6 +288,8 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
                 setCurrentView('chillerForm');
               } else if (activeCategory.id === 4 || activeCategory.title.includes('Genset')) {
                 setCurrentView('gensetForm');
+              } else if (activeCategory.id === 1 || activeCategory.title === 'DPM') {
+                setCurrentView('dpmForm');
               } else {
                 setCurrentView('fcptForm');
               }
@@ -239,7 +304,7 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
   // VIEW 1: DASHBOARD UTAMA
   // -------------------------------------------------------------
   return (
-    <div className="flex h-screen bg-[#f4f7fb] overflow-hidden font-sans relative">
+    <div className="flex h-screen bg-[#f4f7fb] dark:bg-slate-950 overflow-hidden font-sans relative">
       
       {/* OVERLAY BACKGROUND MOBILE */}
       {isSidebarOpen && (
@@ -250,14 +315,14 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
       )}
 
       {/* SIDEBAR RESPONSIVE */}
-      <aside className={`fixed md:static inset-y-0 left-0 z-50 w-72 bg-white border-r border-gray-200 flex flex-col shadow-lg md:shadow-sm flex-shrink-0 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
+      <aside className={`fixed md:static inset-y-0 left-0 z-50 w-72 bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 flex flex-col shadow-lg md:shadow-sm flex-shrink-0 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        <div className="px-5 py-3 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between gap-2">
           <NextImage src="/images/alfamidi-logo-white.png" alt="Alfamidi" width={90} height={50} className="object-contain" />
           
           {/* Tombol Tutup Sidebar untuk Mobile */}
           <button 
             onClick={() => setIsSidebarOpen(false)} 
-            className="p-2 md:hidden text-gray-400 hover:text-gray-700 bg-gray-50 rounded-lg"
+            className="p-2 md:hidden text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 bg-gray-50 dark:bg-slate-800 rounded-lg"
           >
             <X size={20} />
           </button>
@@ -266,23 +331,23 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
         {/* KLIK PROFIL DIARAHKAN KE TAB 'Profiles' */}
         <div 
           onClick={() => { setActiveTab('Profiles'); setIsSidebarOpen(false); }}
-          className={`p-5 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition ${activeTab === 'Profiles' ? 'bg-gray-50' : ''}`}
+          className={`p-5 border-b border-gray-100 dark:border-slate-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition ${activeTab === 'Profiles' ? 'bg-gray-50 dark:bg-slate-800' : ''}`}
         >
           <div className="flex items-center gap-4">
             {profileImage ? (
-               <img src={profileImage} className="w-12 h-12 rounded-full object-cover border border-gray-200 shadow-sm" alt="Profile"/>
+               <img src={profileImage} className="w-12 h-12 rounded-full object-cover border border-gray-200 dark:border-slate-700 shadow-sm" alt="Profile"/>
             ) : (
-               <div className="bg-slate-100 text-slate-400 rounded-full p-2"><UserCircle size={32} /></div>
+               <div className="bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-full p-2"><UserCircle size={32} /></div>
             )}
             <div className="overflow-hidden">
-              <p className="font-bold text-sm text-gray-800 truncate">{fullName || 'User BMT'}</p>
-              <p className="text-xs text-gray-500 truncate">{nik || 'NIK BMT'}</p>
+              <p className="font-bold text-sm text-gray-800 dark:text-gray-100 truncate">{fullName || 'User BMT'}</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{nik || 'NIK BMT'}</p>
             </div>
           </div>
         </div>
 
         <nav className="flex-1 p-5 space-y-2 overflow-y-auto">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 px-2">Menu Utama</p>
+          <p className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-4 px-2">Menu Utama</p>
           {navItems.map((item) => {
             const isActive = activeTab === item.name
             return (
@@ -290,11 +355,11 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
                 key={item.name}
                 onClick={() => { setActiveTab(item.name); setIsSidebarOpen(false); }}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
-                  isActive ? 'bg-red-50 text-[#cc1e2c] font-bold shadow-sm border border-red-100' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium'
+                  isActive ? 'bg-red-50 dark:bg-red-900/20 text-[#cc1e2c] font-bold shadow-sm border border-red-100 dark:border-red-800/50' : 'text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-slate-200 font-medium'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <item.icon size={20} className={isActive ? 'text-[#cc1e2c]' : 'text-gray-400'} />
+                  <item.icon size={20} className={isActive ? 'text-[#cc1e2c]' : 'text-gray-400 dark:text-slate-500'} />
                   <span>{item.label}</span>
                 </div>
               </button>
@@ -302,39 +367,72 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
           })}
         </nav>
 
-        <div className="p-5 border-t border-gray-100">
-          <button onClick={handleSignOut} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-600 hover:bg-red-50 font-bold transition">
+        <div className="p-5 border-t border-gray-100 dark:border-slate-800">
+          <button onClick={handleSignOut} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 font-bold transition">
             <LogOut size={20} /><span>Sign Out</span>
           </button>
         </div>
       </aside>
 
       {/* AREA KONTEN UTAMA */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden bg-[#f4f7fb] w-full">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden bg-[#f4f7fb] dark:bg-slate-950 w-full">
         
         {/* HEADER */}
-        <header className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 md:py-6 flex justify-between items-center z-10 shadow-sm relative">
+        <header className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 px-4 md:px-8 py-4 flex justify-between items-center z-10 shadow-sm relative">
           <div className="flex items-center gap-3 md:gap-4">
             
             {/* Tombol Buka Sidebar untuk Mobile */}
-            <button 
-              onClick={() => setIsSidebarOpen(true)} 
-              className="p-2 md:hidden text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 rounded-lg transition"
-            >
-              <Menu size={24} />
-            </button>
-            
-            <h1 className="text-lg md:text-2xl font-bold text-gray-800 tracking-tight truncate">
-              {activeTab === 'Profiles' ? 'Pengaturan Profil BMT' : 'Dashboard BMT'}
-            </h1>
+            {!rekapDetail && (
+              <button 
+                onClick={() => setIsSidebarOpen(true)} 
+                className="p-2 md:hidden text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-xl transition"
+              >
+                <Menu size={24} />
+              </button>
+            )}
+
+            {/* Tombol Kembali (hanya muncul saat rekapDetail aktif) */}
+            {rekapDetail && (
+              <button 
+                onClick={() => setRekapDetail(null)} 
+                className="p-2.5 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full transition"
+              >
+                <ArrowLeft size={20} />
+              </button>
+            )}
           </div>
-          <div className="flex items-center gap-4">
+
+          {/* Tombol kanan: action buttons + notif + theme toggle */}
+          <div className="flex items-center gap-2">
+            {rekapDetail && (
+              <>
+                <button
+                  onClick={() => shareFnRef.current && shareFnRef.current()}
+                  disabled={isExportingPdf}
+                  className="p-2.5 bg-blue-50/50 dark:bg-blue-900/20 text-[#0c539a] dark:text-blue-400 rounded-xl hover:bg-[#0c539a] hover:text-white dark:hover:bg-blue-600 dark:hover:text-white border border-blue-100 dark:border-blue-800/40 transition disabled:opacity-50"
+                  title="Bagikan"
+                >
+                  <Share2 size={20} />
+                </button>
+                <button
+                  onClick={() => exportFnRef.current && exportFnRef.current()}
+                  disabled={isExportingPdf}
+                  className="p-2.5 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 rounded-xl border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 transition disabled:opacity-50"
+                  title="Export PDF"
+                >
+                  {isExportingPdf ? <Loader2 size={20} className="animate-spin" /> : <Printer size={20} />}
+                </button>
+                <div className="w-px h-8 bg-gray-200 dark:bg-slate-800 mx-2 hidden sm:block"></div>
+              </>
+            )}
+
             <div className="relative">
-              <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="p-2 md:p-3 bg-gray-50 text-gray-600 rounded-full hover:bg-gray-100 transition relative">
+              <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="p-2.5 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 rounded-full hover:bg-gray-50 dark:hover:bg-slate-700 transition relative border border-gray-100 dark:border-slate-700">
                 <Bell size={20} />
-                <span className="absolute top-1.5 md:top-2 right-1.5 md:right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
+                <span className="absolute top-2 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-800" />
               </button>
             </div>
+            <ThemeToggleInline />
           </div>
         </header>
 
@@ -389,16 +487,16 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
               {/* --- TAB BERANDA --- */}
               {activeTab === 'Home' && (
                 <motion.div key="home-tab" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-                  <h2 className="text-sm md:text-base font-extrabold text-gray-800 tracking-tight flex items-center gap-2">Pilih Menu Inspection</h2>
+                  <h2 className="text-sm md:text-base font-extrabold text-gray-800 dark:text-gray-100 tracking-tight flex items-center gap-2">Pilih Menu Inspection</h2>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5">
                     {defaultChecklists.map((item) => (
                       <motion.div 
                         key={item.id} whileHover={{ y: -3 }} whileTap={{ scale: 0.98 }}
-                        className="bg-white border border-gray-200 rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-center items-center text-center cursor-pointer group"
+                        className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-sm hover:shadow-md dark:hover:shadow-slate-900 transition-all flex flex-col justify-center items-center text-center cursor-pointer group"
                         onClick={() => { setActiveCategory(item); setCurrentView('storeList'); }}
                       >
-                        <div className="p-3 md:p-4 bg-red-50/70 rounded-2xl mb-3 md:mb-4 group-hover:scale-110 transition-transform">{item.icon}</div>
-                        <span className="font-extrabold text-xs md:text-base text-gray-800 whitespace-pre-line leading-snug">{item.title}</span>
+                        <div className="p-3 md:p-4 bg-red-50/70 dark:bg-red-900/20 rounded-2xl mb-3 md:mb-4 group-hover:scale-110 transition-transform">{item.icon}</div>
+                        <span className="font-extrabold text-xs md:text-base text-gray-800 dark:text-gray-100 whitespace-pre-line leading-snug">{item.title}</span>
                       </motion.div>
                     ))}
                   </div>
@@ -433,7 +531,27 @@ export default function BMTDashboard({ nik, metadata }: { nik: string, metadata:
               {/* --- TAB REKAP --- */}
               {activeTab === 'Rekap' && (
                 <motion.div key="rekap-tab" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}>
-                  <BMTRekapView nik={nik} metadata={metadata} />
+                  {rekapDetail ? (
+                    <BMTRekapDetailView 
+                      data={rekapDetail.item} 
+                      filterType={rekapDetail.filterType} 
+                      onBack={() => setRekapDetail(null)} 
+                      setExportFn={(fn) => { exportFnRef.current = fn; }}
+                      setShareFn={(fn) => { shareFnRef.current = fn; }}
+                      setIsExporting={setIsExportingPdf}
+                    />
+                  ) : (
+                    <BMTRekapView 
+                      nik={nik} 
+                      metadata={metadata} 
+                      onSelectDetail={(item, type) => {
+                        setRekapDetail({ 
+                          item, 
+                          filterType: item.filterType || (type === 'chiller' ? 'Chiller' : type === 'genset' ? 'Genset' : 'FCPT') 
+                        })
+                      }}
+                    />
+                  )}
                 </motion.div>
               )}
 

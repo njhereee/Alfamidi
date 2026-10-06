@@ -161,3 +161,14 @@ VALUES
   ('SI60', 'JATINGALEH', 'BOYOLALI', 'BYL - AREA BMT 8', 'CHOIRUL BASRI', '225035736', '0215026487', 'BYL - AREA BMC 1', 'DERI OKRIANTO', '216087676'),
   ('SI70', 'BHAYANGKARA DEMAK', 'BOYOLALI', 'BYL - AREA BMT 7', 'AGUNG PRASETYO ADI', '224020002', '0215026487', 'BYL - AREA BMC 1', 'DERI OKRIANTO', '216087676')
 ON CONFLICT (kode) DO NOTHING;
+-- =============================================
+-- PERIODS TABLE
+-- =============================================
+CREATE TABLE IF NOT EXISTS periods (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  year int NOT NULL,
+  month int NOT NULL,
+  is_open boolean DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(year, month)
+);

@@ -1,0 +1,1 @@
+No,Branch,Target Ceklist BMT\"\n  const csvStart = lastUserMessage.indexOf('No,Branch,Target Ceklist BMT');\n  if (csvStart === -1) {\n    console.log('CSV not found in the last user message');\n    r

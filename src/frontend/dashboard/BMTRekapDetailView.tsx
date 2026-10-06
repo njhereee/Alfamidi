@@ -22,6 +22,9 @@ interface BMTRekapDetailViewProps {
   data: any; 
   filterType: string; // 'Semua' | 'FCPT' | 'Chiller' | 'Genset'
   onBack: () => void;
+  setExportFn?: (fn: (() => Promise<void>) | null) => void;
+  setShareFn?: (fn: (() => void) | null) => void;
+  setIsExporting?: (exporting: boolean) => void;
 }
 
 // ─── TEMPLATE FORM FCPT (A - J Categories) ───────────────────────────────────
@@ -113,72 +116,112 @@ const formDataTemplate = [
 ]
 
 function StatusBadge({ status }: { status: string }) {
-  let styles = 'bg-gray-100 text-gray-500 border-gray-200'
   const val = (status || '').toUpperCase()
-  
+  let styles = 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 border-gray-200 dark:border-slate-700'
+
   if (val.includes('BAIK') || val.includes('NORMAL') || val.includes('OK')) {
-    styles = 'bg-emerald-100 text-emerald-700 border-emerald-200'
+    styles = 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
   } else if (val.includes('DAPAT DIGUNAKAN') || val.includes('PERLU PERBAIKAN') || val.includes('SEDANG')) {
-    styles = 'bg-amber-100 text-amber-700 border-amber-200'
+    styles = 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
   } else if (val.includes('TIDAK DAPAT') || val.includes('RUSAK') || val.includes('MATI') || val.includes('NOK')) {
-    styles = 'bg-red-100 text-red-700 border-red-200'
+    styles = 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800'
   }
 
   return (
-    <span className={`text-[10px] sm:text-xs font-bold px-3 py-1 rounded-full border text-center leading-tight shadow-xs ${styles}`}>
+    <span className={`text-[10px] sm:text-xs font-semibold px-2.5 py-1 rounded-full border text-center leading-tight ${styles}`}>
       {status || 'N/A'}
     </span>
   )
 }
 
+function ScoreBar({ value }: { value: number }) {
+  const pct = Math.min(100, Math.max(0, value))
+  const color = pct >= 90 ? 'bg-emerald-500' : pct >= 70 ? 'bg-amber-400' : 'bg-red-500'
+  return (
+    <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-1.5 mt-1.5">
+      <div className={`${color} h-1.5 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+    </div>
+  )
+}
+
 function CategoryAccordion({ cat }: { cat: any }) {
   const [open, setOpen] = useState(false)
+  const isGood = cat.nilai >= 90
+  const scoreColor = isGood ? 'text-emerald-500 dark:text-emerald-400' : cat.nilai >= 70 ? 'text-amber-500 dark:text-amber-400' : 'text-red-500 dark:text-red-400'
 
   return (
-    <div className="rounded-xl overflow-hidden border border-gray-200 bg-white shadow-xs">
+    <div className="rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
       <button
         onClick={() => setOpen(!open)}
-        className={`w-full px-5 py-4 flex justify-between items-center transition-colors ${open ? 'bg-[#0c539a] text-white' : 'bg-[#f8fafc] hover:bg-[#f1f5f9] text-gray-800'}`}
+        className={`w-full px-5 py-4 flex justify-between items-center transition-colors ${
+          open
+            ? 'bg-[#0c539a] dark:bg-blue-700 text-white'
+            : 'bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-800 dark:text-gray-100'
+        }`}
       >
-        <span className="font-bold text-sm uppercase tracking-wide text-left">
+        <span className="font-bold text-sm text-left leading-snug">
           {cat.id}. {cat.title}
         </span>
-        <div className="flex items-center gap-3 shrink-0 ml-2">
-          <span className={`font-black text-lg ${cat.nilai < 90 ? (open ? 'text-red-200' : 'text-red-500') : (open ? 'text-white' : 'text-emerald-600')}`}>
+        <div className="flex items-center gap-3 shrink-0 ml-3">
+          <span className={`font-black text-lg ${open ? 'text-white' : scoreColor}`}>
             {cat.nilai}
           </span>
-          {open ? <ChevronUp size={18} className="text-white" /> : <ChevronDown size={18} className="text-gray-500" />}
+          {open
+            ? <ChevronUp size={16} className="text-white/80" />
+            : <ChevronDown size={16} className="text-gray-400 dark:text-slate-500" />}
         </div>
       </button>
 
       <AnimatePresence>
         {open && (
-          <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden bg-white">
-            <div className="divide-y divide-gray-100">
+          <motion.div
+            initial={{ height: 0 }}
+            animate={{ height: 'auto' }}
+            exit={{ height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="divide-y divide-gray-100 dark:divide-slate-800">
               {cat.items.map((item: any) => (
-                <div key={item.code} className="p-5 space-y-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                    <p className="font-bold text-gray-800 text-sm leading-snug flex-1">
-                      {item.code}. {item.label}
-                    </p>
-                    <div className="shrink-0 flex items-center sm:items-end flex-row sm:flex-col gap-2">
+                <div key={item.code} className="p-5 space-y-3 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
+                  {/* Item header */}
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-800 dark:text-gray-100 text-sm leading-snug">
+                        <span className="text-[#0c539a] dark:text-blue-400 font-bold mr-1.5">{item.code}.</span>
+                        {item.label}
+                      </p>
+                      {/* Score bar */}
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-[11px] text-gray-400 dark:text-slate-500 font-medium">Skor</span>
+                        <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300">{item.nilaiItem}</span>
+                        <div className="flex-1 max-w-[100px]">
+                          <ScoreBar value={item.nilaiItem} />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="shrink-0">
                       <StatusBadge status={item.status} />
-                      <span className="text-xs font-bold text-gray-400">Skor: {item.nilaiItem}</span>
                     </div>
                   </div>
-                  
-                  <div className="bg-gray-50/50 p-3 rounded-lg border border-gray-100">
-                    <p className="text-gray-600 text-sm"><span className="font-bold text-gray-700">Keterangan:</span> {item.keterangan}</p>
-                  </div>
-                  
+
+                  {/* Keterangan */}
+                  {item.keterangan && (
+                    <div className="bg-blue-50/50 dark:bg-slate-800 border border-blue-100 dark:border-slate-700 rounded-xl px-4 py-3">
+                      <p className="text-xs text-gray-500 dark:text-slate-400 font-semibold uppercase tracking-wide mb-0.5">Keterangan</p>
+                      <p className="text-gray-700 dark:text-gray-300 text-sm">{item.keterangan}</p>
+                    </div>
+                  )}
+
+                  {/* Foto */}
                   {item.photo ? (
-                    <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-100 relative max-w-sm">
-                      <img src={item.photo} alt={`Foto ${item.code}`} className="w-full h-auto object-cover max-h-[300px]" loading="lazy" />
+                    <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 max-w-xs">
+                      <img src={item.photo} alt={`Foto ${item.code}`} className="w-full h-auto object-cover max-h-[220px]" loading="lazy" />
                     </div>
                   ) : (
-                    <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-4 flex items-center gap-2 text-gray-400 max-w-sm">
-                      <ImageIcon size={18} className="opacity-50 shrink-0" />
-                      <span className="text-xs font-medium">Tidak ada foto dilampirkan</span>
+                    <div className="rounded-xl border border-dashed border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50 p-3 flex items-center gap-2 text-gray-400 dark:text-slate-500 max-w-xs">
+                      <ImageIcon size={16} className="opacity-50 shrink-0" />
+                      <span className="text-xs">Tidak ada foto</span>
                     </div>
                   )}
                 </div>
@@ -191,9 +234,11 @@ function CategoryAccordion({ cat }: { cat: any }) {
   )
 }
 
-export default function BMTRekapDetailView({ data, filterType, onBack }: BMTRekapDetailViewProps) {
+export default function BMTRekapDetailView({ data, filterType, onBack, setExportFn, setShareFn, setIsExporting: parentSetIsExporting }: BMTRekapDetailViewProps) {
   const [loading, setLoading] = useState(true)
-  const [isExporting, setIsExporting] = useState(false)
+  const [internalIsExporting, setInternalIsExporting] = useState(false)
+  const isExporting = parentSetIsExporting ? false : internalIsExporting // Controlled state override handled by parent
+  const setIsExporting = parentSetIsExporting || setInternalIsExporting
 
   // Data State
   const [fcptItems, setFcptItems] = useState<any[]>([])
@@ -440,118 +485,252 @@ export default function BMTRekapDetailView({ data, filterType, onBack }: BMTReka
   const exportToPDF = async () => {
     setIsExporting(true)
     try {
-      const imageUrls = new Set<string>()
-      fcptCalculations.groupedData.forEach(cat => {
-        cat.items.forEach(item => {
-          if (item.photo) imageUrls.add(item.photo)
+      if (activeTab === 'fcpt') {
+        const imageUrls = new Set<string>()
+        fcptCalculations.groupedData.forEach(cat => {
+          cat.items.forEach(item => {
+            if (item.photo) imageUrls.add(item.photo)
+          })
         })
-      })
 
-      const imageMap: Record<string, PdfLoadedImage> = {}
-      await Promise.all(
-        Array.from(imageUrls).map(async (url) => {
-          const loaded = await loadImageForPdf(url)
-          if (loaded) imageMap[url] = loaded
-        })
-      )
+        const imageMap: Record<string, PdfLoadedImage> = {}
+        await Promise.all(
+          Array.from(imageUrls).map(async (url) => {
+            const loaded = await loadImageForPdf(url)
+            if (loaded) imageMap[url] = loaded
+          })
+        )
 
-      const pdfHalfWidthMm = 88
-      const pdfImageMaxHmm = 42
+        const pdfHalfWidthMm = 88
+        const pdfImageMaxHmm = 42
 
-      const doc = new jsPDF()
-      doc.setFontSize(16)
-      doc.setFont('helvetica', 'bold')
-      doc.text('LAPORAN HASIL INSPEKSI FCPT', 14, 20)
-
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'normal')
-      doc.text(`Kode Toko   : ${data?.kodeToko || '-'}`, 14, 30)
-      doc.text(`Nama Toko : ${data?.namaToko || '-'}`, 14, 36)
-      doc.text(`PIC BMT   : ${data?.namaPic || '-'}`, 110, 30)
-      doc.text(`Tanggal   : ${new Date().toLocaleDateString('id-ID')}`, 110, 36)
-
-      doc.setFillColor(245, 247, 250)
-      doc.roundedRect(14, 42, 182, 18, 2, 2, 'F')
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(12, 83, 154)
-      doc.text(`NILAI AKHIR: ${fcptCalculations.nilaiAkhir}`, 18, 52)
-      doc.setTextColor(0, 0, 0)
-      doc.text(`Rataan Sipil: ${fcptCalculations.avgSipil}`, 80, 52)
-      doc.text(`Rataan MEP: ${fcptCalculations.avgMep}`, 140, 52)
-
-      let startY = 70
-
-      fcptCalculations.groupedData.forEach((cat) => {
-        doc.setFontSize(11)
+        const doc = new jsPDF()
+        doc.setFontSize(16)
         doc.setFont('helvetica', 'bold')
-        doc.text(`${cat.id}. ${cat.title} (Nilai: ${cat.nilai})`, 14, startY)
+        doc.text('LAPORAN HASIL INSPEKSI FCPT', 14, 20)
+
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'normal')
+        doc.text(`Kode Toko   : ${data?.kodeToko || '-'}`, 14, 30)
+        doc.text(`Nama Toko : ${data?.namaToko || '-'}`, 14, 36)
+        doc.text(`PIC BMT   : ${data?.namaPic || '-'}`, 110, 30)
+        doc.text(`Tanggal   : ${new Date().toLocaleDateString('id-ID')}`, 110, 36)
+
+        doc.setFillColor(245, 247, 250)
+        doc.roundedRect(14, 42, 182, 18, 2, 2, 'F')
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(12, 83, 154)
+        doc.text(`NILAI AKHIR: ${fcptCalculations.nilaiAkhir}`, 18, 52)
+        doc.setTextColor(0, 0, 0)
+        doc.text(`Rataan Sipil: ${fcptCalculations.avgSipil}`, 80, 52)
+        doc.text(`Rataan MEP: ${fcptCalculations.avgMep}`, 140, 52)
+
+        let startY = 70
+
+        fcptCalculations.groupedData.forEach((cat) => {
+          doc.setFontSize(11)
+          doc.setFont('helvetica', 'bold')
+          doc.text(`${cat.id}. ${cat.title} (Nilai: ${cat.nilai})`, 14, startY)
+
+          const pdfImagePlacements: Record<string, PdfLoadedImage> = {}
+          const tableBody: any[] = []
+          const items = cat.items as Array<{
+            code: string
+            label: string
+            status: string
+            nilaiItem: number | string
+            keterangan?: string
+            photo?: string
+          }>
+
+          for (let i = 0; i < items.length; i += 2) {
+            const left = items[i]
+            const right = items[i + 1]
+
+            tableBody.push([
+              ...pdfItemRowCells(left),
+              ...(right ? pdfItemRowCells(right) : emptyPdfItemCells()),
+            ])
+
+            const leftImg = left.photo ? imageMap[left.photo] : undefined
+            const rightImg = right?.photo ? imageMap[right.photo] : undefined
+
+            if (leftImg || rightImg) {
+              const leftSize = leftImg
+                ? fitImageMm(leftImg.width, leftImg.height, pdfHalfWidthMm - 4, pdfImageMaxHmm)
+                : { w: 0, h: 0 }
+              const rightSize = rightImg
+                ? fitImageMm(rightImg.width, rightImg.height, pdfHalfWidthMm - 4, pdfImageMaxHmm)
+                : { w: 0, h: 0 }
+              const rowHmm = Math.max(leftSize.h, rightSize.h, 18) + 6
+              const imageRowIndex = tableBody.length
+
+              tableBody.push([
+                {
+                  content: '',
+                  colSpan: 5,
+                  styles: { minCellHeight: rowHmm, fillColor: [249, 250, 251] },
+                },
+                {
+                  content: '',
+                  colSpan: 5,
+                  styles: { minCellHeight: rowHmm, fillColor: [249, 250, 251] },
+                },
+              ])
+
+              if (leftImg) {
+                pdfImagePlacements[`${cat.id}:${imageRowIndex}:left`] = leftImg
+              }
+              if (rightImg) {
+                pdfImagePlacements[`${cat.id}:${imageRowIndex}:right`] = rightImg
+              }
+            }
+          }
+
+          if (tableBody.length === 0) {
+            startY += 8
+            return
+          }
+
+          autoTable(doc, {
+            startY: startY + 4,
+            head: [[
+              'Kode', 'Item Pengecekan', 'Kondisi', 'Skor', 'Ket',
+              'Kode', 'Item Pengecekan', 'Kondisi', 'Skor', 'Ket',
+            ]],
+            body: tableBody,
+            theme: 'grid',
+            tableWidth: 176,
+            rowPageBreak: 'avoid',
+            margin: { top: 20, bottom: 20, left: 14, right: 20 },
+            styles: { fontSize: 7, cellPadding: 2.5, valign: 'top' },
+            headStyles: { fillColor: [12, 83, 154], textColor: 255, fontSize: 7 },
+            columnStyles: {
+              0: { cellWidth: 11 },
+              1: { cellWidth: 30 },
+              2: { cellWidth: 20 },
+              3: { cellWidth: 9, halign: 'center' },
+              4: { cellWidth: 18 },
+              5: { cellWidth: 11 },
+              6: { cellWidth: 30 },
+              7: { cellWidth: 20 },
+              8: { cellWidth: 9, halign: 'center' },
+              9: { cellWidth: 18 },
+            },
+            didParseCell(d) {
+              if (d.section !== 'body' || d.cell.colSpan !== 5) return
+              const side = d.column.index < 5 ? 'left' : 'right'
+              const key = `${cat.id}:${d.row.index}:${side}`
+              if (pdfImagePlacements[key]) d.cell.text = []
+            },
+            didDrawCell(d) {
+              if (d.section !== 'body' || d.cell.colSpan !== 5) return
+              const side = d.column.index < 5 ? 'left' : 'right'
+              const img = pdfImagePlacements[`${cat.id}:${d.row.index}:${side}`]
+              if (!img?.data) return
+
+              const pad = 2
+              const maxW = d.cell.width - pad * 2
+              const maxH = d.cell.height - pad * 2
+              const { w, h } = fitImageMm(img.width, img.height, maxW, maxH)
+              if (w <= 0 || h <= 0) return
+
+              const x = d.cell.x + (d.cell.width - w) / 2
+              const y = d.cell.y + (d.cell.height - h) / 2
+              try {
+                doc.addImage(img.data, img.format, x, y, w, h)
+              } catch (drawErr) {
+                console.error(
+                  'Gagal menempel gambar ke PDF:',
+                  `${cat.id}:${d.row.index}:${side}`,
+                  drawErr
+                )
+              }
+            },
+          })
+
+          // @ts-ignore
+          startY = doc.lastAutoTable.finalY + 12
+          if (startY > 270) {
+            doc.addPage()
+            startY = 20
+          }
+        })
+
+        doc.save(`Laporan_FCPT_${data?.kodeToko || 'Toko'}.pdf`)
+      } else if (activeTab === 'chiller') {
+        const imageUrls = new Set<string>()
+        chillerItems.forEach(item => {
+          if (item.foto_url) imageUrls.add(item.foto_url)
+        })
+
+        const imageMap: Record<string, PdfLoadedImage> = {}
+        await Promise.all(
+          Array.from(imageUrls).map(async (url) => {
+            const loaded = await loadImageForPdf(url)
+            if (loaded) imageMap[url] = loaded
+          })
+        )
+
+        const pdfHalfWidthMm = 88
+        const pdfImageMaxHmm = 42
+
+        const doc = new jsPDF()
+        doc.setFontSize(16)
+        doc.setFont('helvetica', 'bold')
+        doc.text('LAPORAN INSPEKSI EQUIPMENT PENDINGIN', 14, 20)
+
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'normal')
+        doc.text(`Kode Toko   : ${data?.kodeToko || '-'}`, 14, 30)
+        doc.text(`Nama Toko : ${data?.namaToko || '-'}`, 14, 36)
+        doc.text(`PIC BMT   : ${data?.namaPic || '-'}`, 110, 30)
+        doc.text(`Tanggal   : ${new Date().toLocaleDateString('id-ID')}`, 110, 36)
+
+        doc.setFillColor(245, 247, 250)
+        doc.roundedRect(14, 42, 182, 18, 2, 2, 'F')
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(12, 83, 154)
+        doc.text(`NILAI AKHIR: ${chillerData?.nilai_akhir ?? 0}`, 18, 52)
+        doc.setTextColor(0, 0, 0)
+        doc.text(`Jenis Mesin: ${chillerData?.jenis_mesin || '-'}`, 70, 52)
+        doc.text(`Merk: ${chillerData?.merk_mesin || '-'}`, 120, 52)
+        doc.text(`Suhu: ${chillerData?.suhu_tercatat ?? '-'}°C`, 160, 52)
 
         const pdfImagePlacements: Record<string, PdfLoadedImage> = {}
         const tableBody: any[] = []
-        const items = cat.items as Array<{
-          code: string
-          label: string
-          status: string
-          nilaiItem: number | string
-          keterangan?: string
-          photo?: string
-        }>
 
-        for (let i = 0; i < items.length; i += 2) {
-          const left = items[i]
-          const right = items[i + 1]
+        for (let i = 0; i < chillerItems.length; i += 2) {
+          const left = chillerItems[i]
+          const right = chillerItems[i + 1]
 
           tableBody.push([
-            ...pdfItemRowCells(left),
-            ...(right ? pdfItemRowCells(right) : emptyPdfItemCells()),
+            left.item_label || '-', left.kondisi || '-', left.keterangan || '-',
+            right ? right.item_label || '-' : '—', right ? right.kondisi || '-' : '—', right ? right.keterangan || '-' : '—'
           ])
 
-          const leftImg = left.photo ? imageMap[left.photo] : undefined
-          const rightImg = right?.photo ? imageMap[right.photo] : undefined
+          const leftImg = left.foto_url ? imageMap[left.foto_url] : undefined
+          const rightImg = right?.foto_url ? imageMap[right.foto_url] : undefined
 
           if (leftImg || rightImg) {
-            const leftSize = leftImg
-              ? fitImageMm(leftImg.width, leftImg.height, pdfHalfWidthMm - 4, pdfImageMaxHmm)
-              : { w: 0, h: 0 }
-            const rightSize = rightImg
-              ? fitImageMm(rightImg.width, rightImg.height, pdfHalfWidthMm - 4, pdfImageMaxHmm)
-              : { w: 0, h: 0 }
+            const leftSize = leftImg ? fitImageMm(leftImg.width, leftImg.height, pdfHalfWidthMm - 4, pdfImageMaxHmm) : { w: 0, h: 0 }
+            const rightSize = rightImg ? fitImageMm(rightImg.width, rightImg.height, pdfHalfWidthMm - 4, pdfImageMaxHmm) : { w: 0, h: 0 }
             const rowHmm = Math.max(leftSize.h, rightSize.h, 18) + 6
             const imageRowIndex = tableBody.length
 
             tableBody.push([
-              {
-                content: '',
-                colSpan: 5,
-                styles: { minCellHeight: rowHmm, fillColor: [249, 250, 251] },
-              },
-              {
-                content: '',
-                colSpan: 5,
-                styles: { minCellHeight: rowHmm, fillColor: [249, 250, 251] },
-              },
+              { content: '', colSpan: 3, styles: { minCellHeight: rowHmm, fillColor: [249, 250, 251] } },
+              { content: '', colSpan: 3, styles: { minCellHeight: rowHmm, fillColor: [249, 250, 251] } }
             ])
 
-            if (leftImg) {
-              pdfImagePlacements[`${cat.id}:${imageRowIndex}:left`] = leftImg
-            }
-            if (rightImg) {
-              pdfImagePlacements[`${cat.id}:${imageRowIndex}:right`] = rightImg
-            }
+            if (leftImg) pdfImagePlacements[`${imageRowIndex}:left`] = leftImg
+            if (rightImg) pdfImagePlacements[`${imageRowIndex}:right`] = rightImg
           }
         }
 
-        if (tableBody.length === 0) {
-          startY += 8
-          return
-        }
-
         autoTable(doc, {
-          startY: startY + 4,
-          head: [[
-            'Kode', 'Item Pengecekan', 'Kondisi', 'Skor', 'Ket',
-            'Kode', 'Item Pengecekan', 'Kondisi', 'Skor', 'Ket',
-          ]],
+          startY: 68,
+          head: [['Item Pengecekan', 'Kondisi', 'Ket', 'Item Pengecekan', 'Kondisi', 'Ket']],
           body: tableBody,
           theme: 'grid',
           tableWidth: 176,
@@ -560,58 +739,137 @@ export default function BMTRekapDetailView({ data, filterType, onBack }: BMTReka
           styles: { fontSize: 7, cellPadding: 2.5, valign: 'top' },
           headStyles: { fillColor: [12, 83, 154], textColor: 255, fontSize: 7 },
           columnStyles: {
-            0: { cellWidth: 11 },
-            1: { cellWidth: 30 },
-            2: { cellWidth: 20 },
-            3: { cellWidth: 9, halign: 'center' },
-            4: { cellWidth: 18 },
-            5: { cellWidth: 11 },
-            6: { cellWidth: 30 },
-            7: { cellWidth: 20 },
-            8: { cellWidth: 9, halign: 'center' },
-            9: { cellWidth: 18 },
+            0: { cellWidth: 35 }, 1: { cellWidth: 25 }, 2: { cellWidth: 28 },
+            3: { cellWidth: 35 }, 4: { cellWidth: 25 }, 5: { cellWidth: 28 },
           },
           didParseCell(d) {
-            if (d.section !== 'body' || d.cell.colSpan !== 5) return
-            const side = d.column.index < 5 ? 'left' : 'right'
-            const key = `${cat.id}:${d.row.index}:${side}`
-            if (pdfImagePlacements[key]) d.cell.text = []
+            if (d.section !== 'body' || d.cell.colSpan !== 3) return
+            const side = d.column.index < 3 ? 'left' : 'right'
+            if (pdfImagePlacements[`${d.row.index}:${side}`]) d.cell.text = []
           },
           didDrawCell(d) {
-            if (d.section !== 'body' || d.cell.colSpan !== 5) return
-            const side = d.column.index < 5 ? 'left' : 'right'
-            const img = pdfImagePlacements[`${cat.id}:${d.row.index}:${side}`]
+            if (d.section !== 'body' || d.cell.colSpan !== 3) return
+            const side = d.column.index < 3 ? 'left' : 'right'
+            const img = pdfImagePlacements[`${d.row.index}:${side}`]
             if (!img?.data) return
-
             const pad = 2
             const maxW = d.cell.width - pad * 2
             const maxH = d.cell.height - pad * 2
             const { w, h } = fitImageMm(img.width, img.height, maxW, maxH)
             if (w <= 0 || h <= 0) return
-
             const x = d.cell.x + (d.cell.width - w) / 2
             const y = d.cell.y + (d.cell.height - h) / 2
-            try {
-              doc.addImage(img.data, img.format, x, y, w, h)
-            } catch (drawErr) {
-              console.error(
-                'Gagal menempel gambar ke PDF:',
-                `${cat.id}:${d.row.index}:${side}`,
-                drawErr
-              )
-            }
+            try { doc.addImage(img.data, img.format, x, y, w, h) } catch (e) {}
           },
         })
 
-        // @ts-ignore
-        startY = doc.lastAutoTable.finalY + 12
-        if (startY > 270) {
-          doc.addPage()
-          startY = 20
-        }
-      })
+        doc.save(`Laporan_Pendingin_${data?.kodeToko || 'Toko'}.pdf`)
+      } else if (activeTab === 'genset') {
+        const imageUrls = new Set<string>()
+        gensetItems.forEach(item => {
+          if (item.foto_url) imageUrls.add(item.foto_url)
+        })
 
-      doc.save(`Laporan_FCPT_${data?.kodeToko || 'Toko'}.pdf`)
+        const imageMap: Record<string, PdfLoadedImage> = {}
+        await Promise.all(
+          Array.from(imageUrls).map(async (url) => {
+            const loaded = await loadImageForPdf(url)
+            if (loaded) imageMap[url] = loaded
+          })
+        )
+
+        const pdfHalfWidthMm = 88
+        const pdfImageMaxHmm = 42
+
+        const doc = new jsPDF()
+        doc.setFontSize(16)
+        doc.setFont('helvetica', 'bold')
+        doc.text('LAPORAN INSPEKSI GENSET', 14, 20)
+
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'normal')
+        doc.text(`Kode Toko   : ${data?.kodeToko || '-'}`, 14, 30)
+        doc.text(`Nama Toko : ${data?.namaToko || '-'}`, 14, 36)
+        doc.text(`PIC BMT   : ${data?.namaPic || '-'}`, 110, 30)
+        doc.text(`Tanggal   : ${new Date().toLocaleDateString('id-ID')}`, 110, 36)
+
+        doc.setFillColor(245, 247, 250)
+        doc.roundedRect(14, 42, 182, 18, 2, 2, 'F')
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(12, 83, 154)
+        doc.text(`NILAI AKHIR: ${gensetData?.nilai_akhir ?? 0}`, 18, 52)
+        doc.setTextColor(0, 0, 0)
+        doc.text(`Jenis Genset: ${gensetData?.jenis_genset || '-'}`, 70, 52)
+        doc.text(`Merk Model: ${gensetData?.merk_model || '-'}`, 130, 52)
+
+        const pdfImagePlacements: Record<string, PdfLoadedImage> = {}
+        const tableBody: any[] = []
+
+        for (let i = 0; i < gensetItems.length; i += 2) {
+          const left = gensetItems[i]
+          const right = gensetItems[i + 1]
+
+          tableBody.push([
+            left.item_label || '-', left.kondisi || '-', left.keterangan || '-',
+            right ? right.item_label || '-' : '—', right ? right.kondisi || '-' : '—', right ? right.keterangan || '-' : '—'
+          ])
+
+          const leftImg = left.foto_url ? imageMap[left.foto_url] : undefined
+          const rightImg = right?.foto_url ? imageMap[right.foto_url] : undefined
+
+          if (leftImg || rightImg) {
+            const leftSize = leftImg ? fitImageMm(leftImg.width, leftImg.height, pdfHalfWidthMm - 4, pdfImageMaxHmm) : { w: 0, h: 0 }
+            const rightSize = rightImg ? fitImageMm(rightImg.width, rightImg.height, pdfHalfWidthMm - 4, pdfImageMaxHmm) : { w: 0, h: 0 }
+            const rowHmm = Math.max(leftSize.h, rightSize.h, 18) + 6
+            const imageRowIndex = tableBody.length
+
+            tableBody.push([
+              { content: '', colSpan: 3, styles: { minCellHeight: rowHmm, fillColor: [249, 250, 251] } },
+              { content: '', colSpan: 3, styles: { minCellHeight: rowHmm, fillColor: [249, 250, 251] } }
+            ])
+
+            if (leftImg) pdfImagePlacements[`${imageRowIndex}:left`] = leftImg
+            if (rightImg) pdfImagePlacements[`${imageRowIndex}:right`] = rightImg
+          }
+        }
+
+        autoTable(doc, {
+          startY: 68,
+          head: [['Item Pengecekan', 'Kondisi', 'Ket', 'Item Pengecekan', 'Kondisi', 'Ket']],
+          body: tableBody,
+          theme: 'grid',
+          tableWidth: 176,
+          rowPageBreak: 'avoid',
+          margin: { top: 20, bottom: 20, left: 14, right: 20 },
+          styles: { fontSize: 7, cellPadding: 2.5, valign: 'top' },
+          headStyles: { fillColor: [12, 83, 154], textColor: 255, fontSize: 7 },
+          columnStyles: {
+            0: { cellWidth: 35 }, 1: { cellWidth: 25 }, 2: { cellWidth: 28 },
+            3: { cellWidth: 35 }, 4: { cellWidth: 25 }, 5: { cellWidth: 28 },
+          },
+          didParseCell(d) {
+            if (d.section !== 'body' || d.cell.colSpan !== 3) return
+            const side = d.column.index < 3 ? 'left' : 'right'
+            if (pdfImagePlacements[`${d.row.index}:${side}`]) d.cell.text = []
+          },
+          didDrawCell(d) {
+            if (d.section !== 'body' || d.cell.colSpan !== 3) return
+            const side = d.column.index < 3 ? 'left' : 'right'
+            const img = pdfImagePlacements[`${d.row.index}:${side}`]
+            if (!img?.data) return
+            const pad = 2
+            const maxW = d.cell.width - pad * 2
+            const maxH = d.cell.height - pad * 2
+            const { w, h } = fitImageMm(img.width, img.height, maxW, maxH)
+            if (w <= 0 || h <= 0) return
+            const x = d.cell.x + (d.cell.width - w) / 2
+            const y = d.cell.y + (d.cell.height - h) / 2
+            try { doc.addImage(img.data, img.format, x, y, w, h) } catch (e) {}
+          },
+        })
+
+        doc.save(`Laporan_Genset_${data?.kodeToko || 'Toko'}.pdf`)
+      }
     } catch (error) {
       console.error('Gagal melakukan export PDF:', error)
       const detail = error instanceof Error ? error.message : String(error)
@@ -622,17 +880,38 @@ export default function BMTRekapDetailView({ data, filterType, onBack }: BMTReka
   }
 
   const handleShare = async () => {
-    const textToShare = 
-`*Laporan Checklist Toko*\n
+    let textToShare = ''
+    let titleShare = ''
+    
+    if (activeTab === 'fcpt') {
+      titleShare = `Laporan FCPT ${data?.kodeToko}`
+      textToShare = `*Laporan Checklist Toko*\n
 🏢 Toko: ${data?.kodeToko} - ${data?.namaToko}
 👨‍🔧 PIC: ${data?.namaPic || '-'}
 📊 Nilai Akhir FCPT: *${fcptCalculations.nilaiAkhir}*
 \nSilakan cek detail lengkapnya di sistem.`
+    } else if (activeTab === 'chiller') {
+      titleShare = `Laporan Equipment Pendingin ${data?.kodeToko}`
+      textToShare = `*Laporan Equipment Pendingin*\n
+🏢 Toko: ${data?.kodeToko} - ${data?.namaToko}
+👨‍🔧 PIC: ${data?.namaPic || '-'}
+❄️ Jenis Mesin: ${chillerData?.jenis_mesin || '-'}
+📊 Nilai Akhir: *${chillerData?.nilai_akhir ?? 0}*
+\nSilakan cek detail lengkapnya di sistem.`
+    } else if (activeTab === 'genset') {
+      titleShare = `Laporan Genset ${data?.kodeToko}`
+      textToShare = `*Laporan Genset*\n
+🏢 Toko: ${data?.kodeToko} - ${data?.namaToko}
+👨‍🔧 PIC: ${data?.namaPic || '-'}
+⚡ Jenis Genset: ${gensetData?.jenis_genset || '-'}
+📊 Nilai Akhir: *${gensetData?.nilai_akhir ?? 0}*
+\nSilakan cek detail lengkapnya di sistem.`
+    }
 
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Laporan FCPT ${data?.kodeToko}`,
+          title: titleShare,
           text: textToShare,
           url: window.location.href,
         })
@@ -645,6 +924,16 @@ export default function BMTRekapDetailView({ data, filterType, onBack }: BMTReka
     }
   }
 
+  // Register functions to parent if props exist
+  useEffect(() => {
+    if (setExportFn) setExportFn(exportToPDF)
+    if (setShareFn) setShareFn(handleShare)
+    return () => {
+      if (setExportFn) setExportFn(null)
+      if (setShareFn) setShareFn(null)
+    }
+  }) // No dependencies so it always stays up-to-date with the latest closures
+
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#f4f7fb] gap-4">
       <div className="animate-spin w-10 h-10 border-4 border-[#0c539a] border-t-transparent rounded-full shadow-md" />
@@ -655,140 +944,120 @@ export default function BMTRekapDetailView({ data, filterType, onBack }: BMTReka
   const nilaiColor = fcptCalculations.nilaiAkhir < 90 ? 'bg-[#cc1e2c]' : 'bg-[#0c539a]'
 
   return (
-    <div className="w-full min-h-screen bg-[#f4f7fb]">
-      
-      {/* Header Bar */}
-      <div className="bg-white border-b px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-20 shadow-xs">
-        <button onClick={onBack} className="flex items-center gap-2 font-bold text-xs text-gray-700 hover:text-[#0c539a] transition">
-          <ArrowLeft size={16} /> Kembali
-        </button>
-        
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={handleShare}
-            disabled={isExporting}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-[#0c539a] bg-blue-50 border border-blue-100 rounded-lg hover:bg-[#0c539a] hover:text-white transition-all shadow-xs disabled:opacity-50"
-          >
-            <Share2 size={14} /> <span className="hidden sm:inline">Bagikan</span>
-          </button>
-          
-          <button 
-            onClick={exportToPDF}
-            disabled={isExporting}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-white bg-gray-800 border border-gray-900 rounded-lg hover:bg-black transition-all shadow-xs disabled:bg-gray-500 disabled:cursor-not-allowed"
-          >
-            {isExporting ? (
-              <>
-                <Loader2 size={14} className="animate-spin" />
-                <span className="hidden sm:inline">Memproses...</span>
-              </>
-            ) : (
-              <>
-                <Printer size={14} />
-                <span className="hidden sm:inline">Export PDF</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
+    <div className="w-full">
+      {/* Header dihapus karena dipindah ke BMTDashboard */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl mx-auto space-y-5">
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl mx-auto pb-24 px-4 pt-6 space-y-6">
-        
         {/* Info Card Toko */}
-        <div className="bg-white rounded-2xl shadow-xs border border-gray-200 p-6">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 dark:border-slate-800 flex items-center gap-2">
+            <Building2 size={14} className="text-[#0c539a] dark:text-blue-400" />
+            <span className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Informasi Toko</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-5 p-5">
             <div>
-              <p className="text-[11px] text-gray-400 uppercase font-bold tracking-wider mb-1">Kode Toko</p>
-              <p className="font-bold text-gray-800 text-base">{data?.kodeToko || '-'}</p>
+              <p className="text-[10px] text-gray-400 dark:text-slate-500 uppercase font-bold tracking-wider mb-1">Kode Toko</p>
+              <p className="font-bold text-gray-800 dark:text-gray-100 text-sm">{data?.kodeToko || '-'}</p>
             </div>
             <div>
-              <p className="text-[11px] text-gray-400 uppercase font-bold tracking-wider mb-1">Nama Toko</p>
-              <p className="font-bold text-gray-800 text-base">{data?.namaToko || '-'}</p>
+              <p className="text-[10px] text-gray-400 dark:text-slate-500 uppercase font-bold tracking-wider mb-1">Nama Toko</p>
+              <p className="font-bold text-gray-800 dark:text-gray-100 text-sm">{data?.namaToko || '-'}</p>
             </div>
             <div>
-              <p className="text-[11px] text-gray-400 uppercase font-bold tracking-wider mb-1">PIC BMT</p>
-              <p className="font-bold text-gray-800 text-sm">{data?.namaPic || '-'}</p>
+              <p className="text-[10px] text-gray-400 dark:text-slate-500 uppercase font-bold tracking-wider mb-1">PIC BMT</p>
+              <p className="font-bold text-gray-800 dark:text-gray-100 text-sm">{data?.namaPic || '-'}</p>
             </div>
             <div>
-              <p className="text-[11px] text-gray-400 uppercase font-bold tracking-wider mb-1">Status Laporan</p>
-              <p className="font-bold text-emerald-600 text-sm">{data?.isDone ? 'Selesai' : 'Aktif'}</p>
+              <p className="text-[10px] text-gray-400 dark:text-slate-500 uppercase font-bold tracking-wider mb-1">Status</p>
+              <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full ${data?.isDone ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${data?.isDone ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                {data?.isDone ? 'Selesai' : 'Aktif'}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* TAB SWITCHER (Dinamis berdasarkan availableTabs) */}
+        {/* TAB SWITCHER */}
         {availableTabs.length > 1 && (
-          <div className="flex rounded-2xl bg-gray-200/80 p-1.5 gap-1.5 border border-gray-200 shadow-inner">
+          <div className="flex bg-gray-100 dark:bg-slate-800 p-1 rounded-2xl gap-1 border border-gray-200 dark:border-slate-700">
             {availableTabs.some(t => t.id === 'fcpt') && (
               <button
                 onClick={() => setActiveTab('fcpt')}
-                className={`flex-1 py-3 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+                className={`flex-1 py-2.5 px-3 rounded-xl font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all ${
                   activeTab === 'fcpt'
-                    ? 'bg-white text-[#0c539a] shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                    ? 'bg-white dark:bg-slate-900 text-[#0c539a] dark:text-blue-400 shadow-sm'
+                    : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-gray-200'
                 }`}
               >
-                <Building2 size={16} />
+                <Building2 size={14} />
                 <span className="hidden sm:inline">Bangunan (FCPT)</span>
                 <span className="sm:hidden">FCPT</span>
               </button>
             )}
-
             {availableTabs.some(t => t.id === 'chiller') && (
               <button
                 onClick={() => setActiveTab('chiller')}
-                className={`flex-1 py-3 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+                className={`flex-1 py-2.5 px-3 rounded-xl font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all ${
                   activeTab === 'chiller'
-                    ? 'bg-white text-[#0c539a] shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                    ? 'bg-white dark:bg-slate-900 text-[#0c539a] dark:text-blue-400 shadow-sm'
+                    : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-gray-200'
                 }`}
               >
-                <Snowflake size={16} />
+                <Snowflake size={14} />
                 <span className="hidden sm:inline">Eq. Pendingin</span>
                 <span className="sm:hidden">Chiller</span>
               </button>
             )}
-
             {availableTabs.some(t => t.id === 'genset') && (
               <button
                 onClick={() => setActiveTab('genset')}
-                className={`flex-1 py-3 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+                className={`flex-1 py-2.5 px-3 rounded-xl font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all ${
                   activeTab === 'genset'
-                    ? 'bg-white text-[#0c539a] shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                    ? 'bg-white dark:bg-slate-900 text-[#0c539a] dark:text-blue-400 shadow-sm'
+                    : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-gray-200'
                 }`}
               >
-                <Zap size={16} />
+                <Zap size={14} />
                 <span>Genset</span>
               </button>
             )}
           </div>
         )}
 
-        {/* TAB CONTENT 1: FCPT / BANGUNAN */}
+        {/* TAB CONTENT 1: FCPT */}
         {activeTab === 'fcpt' && (
-          <div className="space-y-6">
-            {/* Skor Akhir & Rataan */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4 bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
-              <div className="flex items-center justify-between flex-1 sm:pr-4 sm:border-r border-gray-100">
-                <span className="font-black text-gray-800 text-sm uppercase tracking-wide">Nilai Akhir</span>
-                <span className={`${nilaiColor} text-white font-black text-xl px-4 py-1.5 rounded-xl shadow-md`}>
-                  {fcptCalculations.nilaiAkhir}
-                </span>
+          <div className="space-y-4">
+            {/* Skor Card */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Nilai Akhir</span>
+                <div className="flex items-end gap-2 mt-1">
+                  <span className={`text-4xl font-black ${nilaiColor.replace('bg-', 'text-').replace('[#cc1e2c]','red-600').replace('[#0c539a]','[#0c539a]')} ${fcptCalculations.nilaiAkhir < 90 ? 'text-red-600 dark:text-red-400' : 'text-[#0c539a] dark:text-blue-400'}`}>
+                    {fcptCalculations.nilaiAkhir}
+                  </span>
+                  <span className="text-gray-400 dark:text-slate-500 text-sm mb-1">/100</span>
+                </div>
+                <ScoreBar value={fcptCalculations.nilaiAkhir} />
               </div>
-              <div className="flex items-center justify-between flex-1">
-                <span className="font-black text-gray-800 text-sm uppercase tracking-wide">Rataan Sipil</span>
-                <span className="bg-[#0c539a] text-white font-black text-xl px-4 py-1.5 rounded-xl shadow-md">
-                  {fcptCalculations.avgSipil}
-                </span>
+              <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Rataan Sipil</span>
+                <div className="flex items-end gap-2 mt-1">
+                  <span className="text-4xl font-black text-[#0c539a] dark:text-blue-400">
+                    {fcptCalculations.avgSipil}
+                  </span>
+                  <span className="text-gray-400 dark:text-slate-500 text-sm mb-1">/100</span>
+                </div>
+                <ScoreBar value={fcptCalculations.avgSipil} />
               </div>
             </div>
 
-            {/* Accordions Kategori A-J */}
-            <div className="space-y-3">
+            {/* Accordions */}
+            <div className="space-y-2.5">
               {fcptCalculations.groupedData.length === 0 ? (
-                <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-300">
-                  <p className="text-gray-500 font-medium text-xs">Belum ada data FCPT yang tersimpan untuk toko ini.</p>
+                <div className="text-center py-14 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
+                  <Building2 size={32} className="mx-auto text-gray-300 dark:text-slate-600 mb-3" />
+                  <p className="text-gray-500 dark:text-slate-400 font-semibold text-sm">Belum ada data FCPT</p>
+                  <p className="text-gray-400 dark:text-slate-500 text-xs mt-1">Data belum diisi untuk toko ini.</p>
                 </div>
               ) : (
                 fcptCalculations.groupedData.map((cat) => (
@@ -799,73 +1068,67 @@ export default function BMTRekapDetailView({ data, filterType, onBack }: BMTReka
           </div>
         )}
 
-        {/* TAB CONTENT 2: EQUIPMENT PENDINGIN (CHILLER) */}
+        {/* TAB CONTENT 2: CHILLER */}
         {activeTab === 'chiller' && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {!chillerData ? (
-              <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-300 p-6">
-                <Snowflake size={36} className="mx-auto text-gray-300 mb-2" />
-                <p className="text-gray-500 font-bold text-sm">Belum Ada Data Equipment Pendingin</p>
-                <p className="text-gray-400 text-xs mt-1">Checklist chiller/freezer belum diisi untuk toko ini.</p>
+              <div className="text-center py-14 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
+                <Snowflake size={32} className="mx-auto text-gray-300 dark:text-slate-600 mb-3" />
+                <p className="text-gray-500 dark:text-slate-400 font-semibold text-sm">Belum Ada Data Equipment Pendingin</p>
+                <p className="text-gray-400 dark:text-slate-500 text-xs mt-1">Checklist chiller/freezer belum diisi untuk toko ini.</p>
               </div>
             ) : (
               <>
-                {/* Summary Card Chiller */}
-                <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-xs space-y-4">
-                  <div className="flex justify-between items-start border-b border-gray-100 pb-4">
+                {/* Summary Chiller */}
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                  <div className="px-5 py-4 flex justify-between items-start">
                     <div>
-                      <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md uppercase">
+                      <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-lg uppercase">
                         {chillerData.jenis_mesin || 'Pendingin'}
                       </span>
-                      <h3 className="text-lg font-black text-gray-800 mt-2">{chillerData.merk_mesin || 'Merk Tidak Tercatat'}</h3>
+                      <h3 className="text-lg font-black text-gray-800 dark:text-gray-100 mt-2">{chillerData.merk_mesin || 'Merk Tidak Tercatat'}</h3>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-gray-400 uppercase font-bold">Nilai Akhir</p>
-                      <p className="text-2xl font-black text-[#0c539a]">{chillerData.nilai_akhir ?? 0}</p>
+                      <p className="text-[10px] text-gray-400 dark:text-slate-500 uppercase font-bold">Nilai Akhir</p>
+                      <p className="text-3xl font-black text-[#0c539a] dark:text-blue-400">{chillerData.nilai_akhir ?? 0}</p>
+                      <ScoreBar value={chillerData.nilai_akhir ?? 0} />
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 px-5 pb-5 text-xs border-t border-gray-100 dark:border-slate-800 pt-4">
                     <div>
-                      <p className="text-gray-400 font-bold uppercase">Suhu Tercatat</p>
-                      <p className="font-bold text-gray-800 text-sm mt-0.5">
+                      <p className="text-gray-400 dark:text-slate-500 font-bold uppercase mb-1">Suhu Tercatat</p>
+                      <p className="font-bold text-gray-800 dark:text-gray-100">
                         {chillerData.suhu_tercatat !== null ? `${chillerData.suhu_tercatat}°C` : '-'}
                       </p>
                     </div>
                     <div>
-                      <p className="text-gray-400 font-bold uppercase">Status Tagging</p>
-                      <p className="font-bold text-gray-800 text-sm mt-0.5">
-                        {chillerData.status_tagging || '-'}
-                      </p>
+                      <p className="text-gray-400 dark:text-slate-500 font-bold uppercase mb-1">Status Tagging</p>
+                      <p className="font-bold text-gray-800 dark:text-gray-100">{chillerData.status_tagging || '-'}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* List Item Chiller */}
                 {chillerItems.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-                    <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                      <h4 className="font-bold text-gray-800">Detail Pengecekan Item</h4>
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                    <div className="px-5 py-3 border-b border-gray-100 dark:border-slate-800">
+                      <h4 className="font-bold text-gray-800 dark:text-gray-100 text-sm">Detail Pengecekan Item</h4>
                     </div>
-                    <div className="divide-y divide-gray-100">
+                    <div className="divide-y divide-gray-100 dark:divide-slate-800">
                       {chillerItems.map((item, idx) => (
-                        <div key={idx} className="p-6 space-y-3 hover:bg-gray-50 transition-colors">
+                        <div key={idx} className="p-5 space-y-3 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
                           <div className="flex flex-col sm:flex-row justify-between gap-2">
-                            <p className="font-bold text-sm text-gray-800">{item.item_label || `Item ${idx + 1}`}</p>
-                            <div className="shrink-0">
-                              <StatusBadge status={item.kondisi} />
-                            </div>
+                            <p className="font-semibold text-sm text-gray-800 dark:text-gray-100">{item.item_label || `Item ${idx + 1}`}</p>
+                            <StatusBadge status={item.kondisi} />
                           </div>
-                          
                           {item.keterangan && (
-                            <div className="bg-gray-50/50 p-3 rounded-lg border border-gray-100">
-                              <p className="text-gray-600 text-sm"><span className="font-bold text-gray-700">Ket:</span> {item.keterangan}</p>
+                            <div className="bg-blue-50/50 dark:bg-slate-800 border border-blue-100 dark:border-slate-700 rounded-xl px-4 py-3">
+                              <p className="text-[10px] text-gray-400 dark:text-slate-500 font-bold uppercase mb-0.5">Keterangan</p>
+                              <p className="text-gray-700 dark:text-gray-300 text-sm">{item.keterangan}</p>
                             </div>
                           )}
-                          
                           {item.foto_url && (
-                            <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-100 relative max-w-sm mt-2">
-                              <img src={item.foto_url} alt="Foto Chiller" className="w-full h-auto object-cover max-h-[250px]" loading="lazy" />
+                            <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 max-w-xs">
+                              <img src={item.foto_url} alt="Foto Chiller" className="w-full h-auto object-cover max-h-[220px]" loading="lazy" />
                             </div>
                           )}
                         </div>
@@ -880,71 +1143,59 @@ export default function BMTRekapDetailView({ data, filterType, onBack }: BMTReka
 
         {/* TAB CONTENT 3: GENSET */}
         {activeTab === 'genset' && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {!gensetData ? (
-              <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-300 p-6">
-                <Zap size={36} className="mx-auto text-gray-300 mb-2" />
-                <p className="text-gray-500 font-bold text-sm">Belum Ada Data Genset</p>
-                <p className="text-gray-400 text-xs mt-1">Checklist dan inspeksi genset belum dilakukan untuk toko ini.</p>
+              <div className="text-center py-14 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
+                <Zap size={32} className="mx-auto text-gray-300 dark:text-slate-600 mb-3" />
+                <p className="text-gray-500 dark:text-slate-400 font-semibold text-sm">Belum Ada Data Genset</p>
+                <p className="text-gray-400 dark:text-slate-500 text-xs mt-1">Checklist genset belum dilakukan untuk toko ini.</p>
               </div>
             ) : (
               <>
-                {/* Summary Card Genset */}
-                <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-xs space-y-4">
-                  <div className="flex justify-between items-start border-b border-gray-100 pb-4">
+                {/* Summary Genset */}
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                  <div className="px-5 py-4 flex justify-between items-start">
                     <div>
-                      <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-md uppercase">
+                      <span className="text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2.5 py-1 rounded-lg uppercase">
                         {gensetData.jenis_genset || 'Genset Standar'}
                       </span>
-                      <h3 className="text-lg font-black text-gray-800 mt-2">{gensetData.merk_mesin || 'Merk Tidak Tercatat'}</h3>
+                      <h3 className="text-lg font-black text-gray-800 dark:text-gray-100 mt-2">{gensetData.merk_model || 'Merk Tidak Tercatat'}</h3>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-gray-400 uppercase font-bold">Nilai Akhir</p>
-                      <p className="text-2xl font-black text-[#0c539a]">{gensetData.nilai_akhir ?? 0}</p>
+                      <p className="text-[10px] text-gray-400 dark:text-slate-500 uppercase font-bold">Nilai Akhir</p>
+                      <p className="text-3xl font-black text-[#0c539a] dark:text-blue-400">{gensetData.nilai_akhir ?? 0}</p>
+                      <ScoreBar value={gensetData.nilai_akhir ?? 0} />
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
+                  <div className="px-5 pb-5 text-xs border-t border-gray-100 dark:border-slate-800 pt-4">
                     <div>
-                      <p className="text-gray-400 font-bold uppercase">Status Pemanasan</p>
-                      <p className="font-bold text-gray-800 text-sm mt-0.5">
-                        {gensetData.pemanasan_unit || '-'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 font-bold uppercase">Status Unit</p>
-                      <p className="font-bold text-gray-800 text-sm mt-0.5">
-                        {gensetData.status_unit || '-'}
-                      </p>
+                      <p className="text-gray-400 dark:text-slate-500 font-bold uppercase mb-1">Status Unit</p>
+                      <p className="font-bold text-gray-800 dark:text-gray-100">{gensetData.status_unit || '-'}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* List Item Genset */}
                 {gensetItems.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-                    <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                      <h4 className="font-bold text-gray-800">Detail Pengecekan Item</h4>
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                    <div className="px-5 py-3 border-b border-gray-100 dark:border-slate-800">
+                      <h4 className="font-bold text-gray-800 dark:text-gray-100 text-sm">Detail Pengecekan Item</h4>
                     </div>
-                    <div className="divide-y divide-gray-100">
+                    <div className="divide-y divide-gray-100 dark:divide-slate-800">
                       {gensetItems.map((item, idx) => (
-                        <div key={idx} className="p-6 space-y-3 hover:bg-gray-50 transition-colors">
+                        <div key={idx} className="p-5 space-y-3 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
                           <div className="flex flex-col sm:flex-row justify-between gap-2">
-                            <p className="font-bold text-sm text-gray-800">{item.item_label || `Item ${idx + 1}`}</p>
-                            <div className="shrink-0">
-                              <StatusBadge status={item.kondisi} />
-                            </div>
+                            <p className="font-semibold text-sm text-gray-800 dark:text-gray-100">{item.item_label || `Item ${idx + 1}`}</p>
+                            <StatusBadge status={item.kondisi} />
                           </div>
-                          
                           {item.keterangan && (
-                            <div className="bg-gray-50/50 p-3 rounded-lg border border-gray-100">
-                              <p className="text-gray-600 text-sm"><span className="font-bold text-gray-700">Ket:</span> {item.keterangan}</p>
+                            <div className="bg-blue-50/50 dark:bg-slate-800 border border-blue-100 dark:border-slate-700 rounded-xl px-4 py-3">
+                              <p className="text-[10px] text-gray-400 dark:text-slate-500 font-bold uppercase mb-0.5">Keterangan</p>
+                              <p className="text-gray-700 dark:text-gray-300 text-sm">{item.keterangan}</p>
                             </div>
                           )}
-                          
                           {item.foto_url && (
-                            <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-100 relative max-w-sm mt-2">
-                              <img src={item.foto_url} alt="Foto Genset" className="w-full h-auto object-cover max-h-[250px]" loading="lazy" />
+                            <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 max-w-xs">
+                              <img src={item.foto_url} alt="Foto Genset" className="w-full h-auto object-cover max-h-[220px]" loading="lazy" />
                             </div>
                           )}
                         </div>

@@ -7,6 +7,7 @@ import {
   CHILLER_EQUIPMENT_CHECKLIST_TOTAL,
   normalizeEquipmentTypeFromSubmission,
 } from './chillerChecklistConfig'
+import DPMHistoryView from './DPMHistoryView'
 
 type Store = {
   id: string
@@ -15,6 +16,7 @@ type Store = {
   branch: string
   nama_bmt: string
   submitted_at?: string
+  dpm_submitted_at?: string
   is_done?: boolean
   checklist_done_count?: number
   checklist_total?: number
@@ -38,6 +40,12 @@ export default function ChecklistDetailView({
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedCabang, setSelectedCabang] = useState('')
+  const [isPeriodOpen, setIsPeriodOpen] = useState(true) // default open
+  
+  const [dpmTab, setDpmTab] = useState<'toko' | 'riwayat'>('toko')
+
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   
   // State otomatis dari Supabase Login
   const [userRole, setUserRole] = useState('')
@@ -45,6 +53,7 @@ export default function ChecklistDetailView({
   const [selectedBmt, setSelectedBmt] = useState('') // Dropdown filter untuk HO/Admin
 
   const chillerChecklist = isChillerEquipmentChecklist(checklist)
+  const isDpmCategory = checklist?.title?.toLowerCase().includes('dpm') || checklist?.id === 1
 
   useEffect(() => {
     setLoading(true)
@@ -52,6 +61,19 @@ export default function ChecklistDetailView({
       try {
         const { createClient } = await import('@/frontend/supabase/client')
         const supabase = createClient()
+
+        // Check if selected period is open
+        const { data: periodData } = await supabase
+          .from('periods')
+          .select('is_open')
+          .eq('year', selectedYear)
+          .eq('month', selectedMonth)
+          .single()
+        // If no record exists, default is true ONLY if it's the current month/year
+        const now = new Date()
+        const isCurrentMonth = selectedYear === now.getFullYear() && selectedMonth === (now.getMonth() + 1)
+        setIsPeriodOpen(periodData ? periodData.is_open : isCurrentMonth)
+
 
         // 1. CEK USER YANG LOGIN
         const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -104,11 +126,15 @@ if (isChillerChecklist) {
 }
 
 let merged: Store[] = []
+const startDate = new Date(selectedYear, selectedMonth - 1, 1).toISOString()
+const endDate = new Date(selectedYear, selectedMonth, 1).toISOString()
 
 if (isChillerChecklist) {
   const { data: submissions, error: subError } = await supabase
     .from('chiller_submissions')
     .select('store_kode, jenis_mesin, submitted_at, created_at')
+    .gte('created_at', startDate)
+    .lt('created_at', endDate)
 
   if (subError) {
     console.error(
@@ -152,10 +178,57 @@ if (isChillerChecklist) {
       is_done: doneCount >= total,
     }
   })
+} else if (isDpmCategory) {
+  // DPM: Cek apakah ADA SATU SAJA submission dari fcpt, chiller, atau genset
+  const [
+    { data: fcptSub },
+    { data: chillerSub },
+    { data: gensetSub },
+    { data: dpmSub }
+  ] = await Promise.all([
+    supabase.from('fcpt_submissions').select('store_kode, submitted_at, created_at').gte('created_at', startDate).lt('created_at', endDate),
+    supabase.from('chiller_submissions').select('store_kode, submitted_at, created_at').gte('created_at', startDate).lt('created_at', endDate),
+    supabase.from('genset_submissions').select('store_kode, submitted_at, created_at').gte('created_at', startDate).lt('created_at', endDate),
+    supabase.from('dpm_submissions').select('store_kode, submitted_at, created_at').gte('created_at', startDate).lt('created_at', endDate)
+  ])
+
+  const doneMap: Record<string, string> = {}
+  const dpmMap: Record<string, string> = {}
+  
+  const processSub = (subs: any[] | null) => {
+    subs?.forEach((s) => {
+      const ts = s.submitted_at || s.created_at
+      if (!doneMap[s.store_kode] || (ts && ts > doneMap[s.store_kode])) {
+        doneMap[s.store_kode] = ts
+      }
+    })
+  }
+
+  processSub(fcptSub)
+  processSub(chillerSub)
+  processSub(gensetSub)
+
+  dpmSub?.forEach((s) => {
+    const ts = s.submitted_at || s.created_at
+    if (!dpmMap[s.store_kode] || (ts && ts > dpmMap[s.store_kode])) {
+      dpmMap[s.store_kode] = ts
+    }
+  })
+
+  merged = (storesData || []).map((s) => ({
+    ...s,
+    submitted_at: doneMap[s.kode] || undefined,
+    dpm_submitted_at: dpmMap[s.kode] || undefined,
+    checklist_done_count: doneMap[s.kode] ? 1 : 0,
+    checklist_total: 1,
+    is_done: !!doneMap[s.kode], // Jika ada salah satu, is_done = true
+  }))
 } else {
   const { data: submissions, error: subError } = await supabase
     .from(tableName)
     .select('store_kode, submitted_at, created_at')
+    .gte('created_at', startDate)
+    .lt('created_at', endDate)
 
   if (subError) {
     console.error(`Gagal fetch tabel ${tableName}:`, subError)
@@ -183,7 +256,7 @@ setStores(merged)
       }
     }
     fetchData()
-  }, [checklist?.id, checklist?.title])
+  }, [checklist?.id, checklist?.title, selectedMonth, selectedYear])
 
   // ==============================
   // LOGIKA FILTERING (CASE-INSENSITIVE)
@@ -259,6 +332,39 @@ setStores(merged)
       animate={{ opacity: 1, y: 0 }}
       className="max-w-5xl mx-auto space-y-6"
     >
+      <div className="flex flex-col md:flex-row gap-4 items-center mb-6 justify-between bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+        <div className="flex items-center gap-3">
+          <Settings2 className="text-[#0c539a]" size={24} />
+          <div>
+            <h3 className="font-bold text-gray-800 text-sm">Pilih Periode Checklist</h3>
+            <p className="text-xs text-gray-500">Tentukan bulan mana yang ingin dicek/diisi</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <select 
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(Number(e.target.value))}
+            className="appearance-none bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#cc1e2c]"
+          >
+            {['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m, i) => (
+              <option key={m} value={i + 1}>{m}</option>
+            ))}
+          </select>
+          <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl px-2">
+            <button onClick={() => setSelectedYear(y => y - 1)} className="p-2 text-gray-500 hover:text-gray-800 font-bold">‹</button>
+            <span className="text-sm font-bold text-gray-700 px-2">{selectedYear}</span>
+            <button onClick={() => setSelectedYear(y => y + 1)} className="p-2 text-gray-500 hover:text-gray-800 font-bold">›</button>
+          </div>
+        </div>
+      </div>
+
+      {!isPeriodOpen && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex flex-col items-center justify-center text-center text-red-600 shadow-sm">
+          <p className="font-bold text-sm">Periode ini telah dikunci oleh Head Office (HO).</p>
+          <p className="text-xs mt-1">Anda hanya bisa melihat history, tidak dapat mengisi form untuk periode ini.</p>
+        </div>
+      )}
+
       {/* Search & Filter Bar */}
       <div className="flex flex-col md:flex-row gap-4 items-center mb-8">
         <div className="relative w-full md:flex-1">
@@ -308,21 +414,59 @@ setStores(merged)
         </div>
       </div>
 
-      <p className="text-sm text-gray-400 font-medium">{filteredStores.length} toko ditemukan</p>
+      {/* Tabs khusus DPM */}
+      {isDpmCategory && (
+        <div className="flex gap-6 mb-6 border-b border-gray-200">
+          <button 
+            onClick={() => setDpmTab('toko')} 
+            className={`pb-3 font-bold transition-colors ${dpmTab === 'toko' ? 'border-b-2 border-[#cc1e2c] text-[#cc1e2c]' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Toko
+          </button>
+          <button 
+            onClick={() => setDpmTab('riwayat')} 
+            className={`pb-3 font-bold transition-colors ${dpmTab === 'riwayat' ? 'border-b-2 border-[#cc1e2c] text-[#cc1e2c]' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Riwayat DPM
+          </button>
+        </div>
+      )}
 
-      {/* Grid of Store Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {dpmTab === 'riwayat' && isDpmCategory ? (
+        <DPMHistoryView storesData={filteredStores} />
+      ) : (
+        <>
+          <p className="text-sm text-gray-400 font-medium mb-4">{filteredStores.length} toko ditemukan</p>
+
+          {/* Grid of Store Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredStores.map(store => {
           const doneCount = store.checklist_done_count ?? 0
           const totalCount =
             store.checklist_total ??
             (chillerChecklist ? CHILLER_EQUIPMENT_CHECKLIST_TOTAL : 1)
-          const isDone = !!store.is_done
+          
+          const isDPM = checklist?.title?.toLowerCase().includes('dpm') || checklist?.id === 1
+          
+          let isDone = !!store.is_done
+          let dateLabel = 'Belum dicek'
+          let canClick = isPeriodOpen  // Locked if period is closed
+          
+          if (isDPM) {
+            canClick = isPeriodOpen && store.is_done
+            isDone = !!store.dpm_submitted_at
+            if (store.dpm_submitted_at) {
+              dateLabel = new Date(store.dpm_submitted_at).toLocaleDateString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+            }
+          } else {
+            if (store.submitted_at) {
+              dateLabel = new Date(store.submitted_at).toLocaleDateString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+            }
+          }
+
           const hasPartialProgress = doneCount > 0 && doneCount < totalCount
-          const dateLabel = store.submitted_at
-            ? new Date(store.submitted_at).toLocaleDateString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
-            : 'Belum dicek'
           const progressLabel = `${doneCount}/${totalCount}`
+          
           const cardComplete = isDone
           const cardPartial = hasPartialProgress
 
@@ -330,14 +474,20 @@ setStores(merged)
             <motion.div 
               key={store.id}
               whileHover={{ y: -4, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }}
-              onClick={() => onStoreClick(store, isDone)}
+              onClick={() => {
+                if (!canClick) {
+                  alert('Form tidak dapat diakses (periode terkunci / belum di-checklist).')
+                  return
+                }
+                onStoreClick({ ...store, selectedPeriod: { month: selectedMonth, year: selectedYear } }, isDone)
+              }}
               className={`rounded-2xl border ${
                 cardComplete
                   ? 'border-blue-200 bg-blue-50/50'
                   : cardPartial
                     ? 'border-amber-200 bg-amber-50/50'
                     : 'border-red-200 bg-red-50/50'
-              } overflow-hidden transition-all duration-300 cursor-pointer flex flex-col shadow-sm`}
+              } overflow-hidden transition-all duration-300 ${canClick ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'} flex flex-col shadow-sm`}
             >
               <div className="p-5 flex-1">
                 <div className="flex justify-between items-start mb-3">
@@ -373,15 +523,17 @@ setStores(merged)
                       cardComplete ? 'text-blue-600' : cardPartial ? 'text-amber-700' : 'text-red-500'
                     }`}
                   >
-                    {dateLabel}
+                    {isDPM && !canClick ? 'Belum di-checklist utama' : (isDPM && !cardComplete ? 'Bisa diakses' : dateLabel)}
                   </span>
-                  <div
-                    className={`px-3 py-1 rounded-full text-xs font-black text-white shadow-sm ${
-                      cardComplete ? 'bg-[#0c539a]' : cardPartial ? 'bg-amber-600' : 'bg-[#cc1e2c]'
-                    }`}
-                  >
-                    {progressLabel}
-                  </div>
+                  {!isDPM && (
+                    <div
+                      className={`px-3 py-1 rounded-full text-xs font-black text-white shadow-sm ${
+                        cardComplete ? 'bg-[#0c539a]' : cardPartial ? 'bg-amber-600' : 'bg-[#cc1e2c]'
+                      }`}
+                    >
+                      {progressLabel}
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -393,6 +545,8 @@ setStores(merged)
         <div className="text-center py-20 text-gray-500">
           Tidak ada toko yang tersedia untuk Anda.
         </div>
+      )}
+      </>
       )}
     </motion.div>
   )

@@ -5,21 +5,28 @@ import {
   Menu, FileText, Settings2, Snowflake, Zap, 
   Edit, Trash2, Upload, Plus, 
   Home, BookOpen, FileSpreadsheet, BarChart2,
-  LogOut, UserCircle, ArrowLeft, UploadCloud, ChevronRight,  Camera,
+  LogOut, UserCircle, ArrowLeft, UploadCloud, ChevronRight, Camera,
   Eye,
   EyeOff,
   Search,
   File,
   Bell,
-  UserCheck
+  UserCheck,
+  CalendarDays,
+  Users
 } from 'lucide-react'
 import NextImage from 'next/image'
 import RekapDetailView from "./RekapDetailView"
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import RekapView from './RekapView'
+import BMTRekapView from './BMTRekapView'
+import BMTRekapDetailView from './BMTRekapDetailView'
 import ChecklistDetailView from './ChecklistDetailView'
 import FCPTFormView from './FCPTFormView'
+import DPMHistoryView from './DPMHistoryView'
+import PeriodManagementView from './PeriodManagementView'
+import BMTManagementView from './BMTManagementView'
 
 const checklistItems = [
   { id: 1, title: 'DPM', icon: <FileText size={36} className="text-[#cc1e2c] mb-3" />, hasActions: false },
@@ -30,9 +37,11 @@ const checklistItems = [
 
 export default function HODashboard({ nik, metadata }: { nik: string, metadata: any }) {
   const [activeTab, setActiveTab] = useState('Home')
-  const [currentView, setCurrentView] = useState<'dashboard' | 'formChecklist' | 'formModul' | 'profile' | 'checklistDetail' | 'fcptForm' | 'rekapDetail'>('dashboard')
+  const [currentView, setCurrentView] = useState<'dashboard' | 'formChecklist' | 'formModul' | 'profile' | 'checklistDetail' | 'fcptForm' | 'rekapDetail' | 'dpmHistory'>('dashboard')
   const [selectedChecklist, setSelectedChecklist] = useState<any>(null)
   const [selectedRekapItem, setSelectedRekapItem] = useState<any>(null)
+  const [activeRekapType, setActiveRekapType] = useState<'fcpt' | 'chiller' | 'genset'>('fcpt')
+  const [rekapDetail, setRekapDetail] = useState<{ item: any; filterType: string } | null>(null)
   const [selectedStore, setSelectedStore] = useState<any>(null)
   const [isNotifOpen, setIsNotifOpen] = useState(false)
   const [pendingUsers, setPendingUsers] = useState<any[]>([])
@@ -133,6 +142,8 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
     { name: 'Modul', icon: BookOpen },
     { name: 'Rekap', icon: FileSpreadsheet },
     { name: 'Verifikasi', icon: UserCheck },
+    { name: 'Periode', icon: CalendarDays },
+    { name: 'Atur BMT', icon: Users },
   ]
 
   const handleSignOut = async () => {
@@ -484,13 +495,22 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
           })}
 
           <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-8 mb-4 px-2">Riwayat Data</p>
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium transition">
+          <button 
+            onClick={() => { setActiveTab('Rekap'); setActiveRekapType('fcpt'); }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium transition"
+          >
             <Settings2 size={20} className="text-gray-400" /><span>Data FCPT</span>
           </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium transition">
+          <button 
+            onClick={() => { setActiveTab('Rekap'); setActiveRekapType('chiller'); }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium transition"
+          >
             <Snowflake size={20} className="text-gray-400" /><span>Equipment Pendingin</span>
           </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium transition">
+          <button 
+            onClick={() => { setActiveTab('Rekap'); setActiveRekapType('genset'); }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium transition"
+          >
             <Zap size={20} className="text-gray-400" /><span>Data Genset</span>
           </button>
         </nav>
@@ -518,6 +538,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
                currentView === 'formChecklist' ? (editItemId ? 'Edit Checklist' : 'Tambah Checklist') :
                currentView === 'formModul' ? (editModulId ? 'Edit Modul' : 'Tambah Modul') :
                currentView === 'checklistDetail' ? `Checklist ${selectedChecklist?.title?.replace(/\n/g, ' ')}` :
+               currentView === 'dpmHistory' ? 'Riwayat DPM' :
                currentView === 'fcptForm' ? 'Form Checklist FCPT' :
                ''}
             </h1>
@@ -633,6 +654,14 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
                   </div>
                 )}
 
+                {activeTab === 'Periode' && (
+                  <PeriodManagementView />
+                )}
+
+                {activeTab === 'Atur BMT' && (
+                  <BMTManagementView userRole="ho" />
+                )}
+
                 {activeTab === 'Modul' && (
                   <div className="mb-8">
                     <div className="relative max-w-md">
@@ -660,7 +689,11 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
                           onClick={() => {
                             if (!isDisabled) {
                               setSelectedChecklist(item)
-                              setCurrentView('checklistDetail')
+                              if (item.title === 'DPM') {
+                                setCurrentView('dpmHistory')
+                              } else {
+                                setCurrentView('checklistDetail')
+                              }
                             }
                           }}
                         >
@@ -729,7 +762,30 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
                   })}
                 </div>
 
-                {activeTab === 'Rekap' && <RekapView onSelectDetail={(item) => { setSelectedRekapItem(item); setCurrentView('rekapDetail'); }} />}
+                {activeTab === 'Rekap' && (
+                  <motion.div key="rekap" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    {rekapDetail ? (
+                      <BMTRekapDetailView 
+                        data={rekapDetail.item} 
+                        filterType={rekapDetail.filterType} 
+                        onBack={() => setRekapDetail(null)} 
+                      />
+                    ) : (
+                      <BMTRekapView 
+                        key={activeRekapType}
+                        defaultRecapType={activeRekapType}
+                        nik={nik}
+                        metadata={metadata}
+                        onSelectDetail={(item, type) => {
+                          setRekapDetail({ 
+                            item, 
+                            filterType: item.filterType || (type === 'chiller' ? 'Chiller' : type === 'genset' ? 'Genset' : 'FCPT') 
+                          })
+                        }}
+                      />
+                    )}
+                  </motion.div>
+                )}
               </motion.div>
             )}
 
@@ -871,6 +927,24 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
                 >
                   {isSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
                 </button>
+              </motion.div>
+            )}
+
+            {currentView === 'dpmHistory' && (
+              <motion.div
+                key="dpmHistory"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="max-w-7xl mx-auto"
+              >
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                  <div className="flex items-center gap-3 mb-4">
+                    <FileText className="text-[#cc1e2c]" size={28} />
+                    <h2 className="text-xl font-bold text-gray-800">Riwayat DPM</h2>
+                  </div>
+                  <DPMHistoryView />
+                </div>
               </motion.div>
             )}
 

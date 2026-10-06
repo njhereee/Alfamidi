@@ -171,10 +171,7 @@ export default function GensetFormView({
       const checklistItems = allGensetChecklistItems()
       const nilaiAkhir = computeGensetNilaiAkhir(answers)
 
-      const { data: submission, error: subErr } = await supabase
-        .from('genset_submissions')
-        .insert([
-          {
+      let submitPayload: any = {
             nik: userNik,
             nama_pic: userNama,
             kode_branch: store?.branch_code || '',
@@ -188,8 +185,16 @@ export default function GensetFormView({
             status_unit: 'NORMAL',
             keterangan_unit: specsData.keterangan_unit || '',
             nilai_akhir: nilaiAkhir,
-          },
-        ])
+      }
+      if (store?.selectedPeriod) {
+        const dateOverride = new Date(store.selectedPeriod.year, store.selectedPeriod.month - 1, 15).toISOString()
+        submitPayload.created_at = dateOverride
+        submitPayload.submitted_at = dateOverride
+      }
+
+      const { data: submission, error: subErr } = await supabase
+        .from('genset_submissions')
+        .insert([submitPayload])
         .select('id')
         .single()
 

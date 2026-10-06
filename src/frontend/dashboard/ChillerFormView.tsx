@@ -144,9 +144,7 @@ export default function ChillerFormView({
       )
 
       // 2. Insert ke Tabel Induk (chiller_submissions)
-      const { data: submission, error: subErr } = await supabase
-        .from('chiller_submissions')
-        .insert([{
+      let submitPayload: any = {
           nik: userNik,
           nama_pic: userNama,
           store_kode: store?.kode,
@@ -161,7 +159,16 @@ export default function ChillerFormView({
           status_unit: specsData.status_unit,
           keterangan_unit: specsData.keterangan_unit,
           nilai_akhir: nilaiAkhir
-        }])
+      }
+      if (store?.selectedPeriod) {
+        const dateOverride = new Date(store.selectedPeriod.year, store.selectedPeriod.month - 1, 15).toISOString()
+        submitPayload.created_at = dateOverride
+        submitPayload.submitted_at = dateOverride
+      }
+
+      const { data: submission, error: subErr } = await supabase
+        .from('chiller_submissions')
+        .insert([submitPayload])
         .select('id')
         .single()
 

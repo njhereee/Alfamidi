@@ -115,9 +115,16 @@ export default function FCPTFormView({ store, onBack }: { store: any, onBack: ()
       const { data: { user } } = await supabase.auth.getUser()
 
       // 1. Buat submission record
+      let submitPayload: any = { store_kode: store?.kode, submitted_by: user?.id }
+      if (store?.selectedPeriod) {
+        const dateOverride = new Date(store.selectedPeriod.year, store.selectedPeriod.month - 1, 15).toISOString()
+        submitPayload.created_at = dateOverride
+        submitPayload.submitted_at = dateOverride
+      }
+
       const { data: submission, error: subErr } = await supabase
         .from('fcpt_submissions')
-        .insert({ store_kode: store?.kode, submitted_by: user?.id })
+        .insert(submitPayload)
         .select('id')
         .single()
       if (subErr) throw subErr
@@ -159,7 +166,7 @@ export default function FCPTFormView({ store, onBack }: { store: any, onBack: ()
   // ─── Handlers ───────────────────────────────────────────────────────────────
   const handleRadioChange = (itemId: string, value: string) => {
     let defaultNilai = 100
-    if (value === 'RUSAK MASIH DAPAT DIGUNAKAN') defaultNilai = 70
+    if (value === 'RUSAK MASIH DAPAT DIGUNAKAN') defaultNilai = 60
     if (value === 'RUSAK TIDAK DAPAT DIGUNAKAN') defaultNilai = 0
     setAnswers(prev => ({ ...prev, [itemId]: { ...prev[itemId], status: value, nilai: defaultNilai } }))
   }
@@ -268,8 +275,8 @@ export default function FCPTFormView({ store, onBack }: { store: any, onBack: ()
                       
                       {status === 'RUSAK MASIH DAPAT DIGUNAKAN' && (
                         <input 
-                          type="range" min="50" max="70" step="5" 
-                          value={currentAnswer.nilai || 70}
+                          type="range" min="50" max="60" step="5" 
+                          value={currentAnswer.nilai || 60}
                           onChange={(e) => handleNilaiChange(item.id, parseInt(e.target.value))}
                           className="w-full accent-amber-500 cursor-pointer"
                         />
@@ -285,7 +292,7 @@ export default function FCPTFormView({ store, onBack }: { store: any, onBack: ()
                       )}
                       <div className="flex justify-between text-[10px] text-gray-400 font-bold mt-2">
                         <span>Min: {status === 'BAIK' ? 80 : status === 'RUSAK MASIH DAPAT DIGUNAKAN' ? 50 : 0}</span>
-                        <span>Max: {status === 'BAIK' ? 100 : status === 'RUSAK MASIH DAPAT DIGUNAKAN' ? 70 : 50}</span>
+                        <span>Max: {status === 'BAIK' ? 100 : status === 'RUSAK MASIH DAPAT DIGUNAKAN' ? 60 : 50}</span>
                       </div>
                     </motion.div>
                   )}
