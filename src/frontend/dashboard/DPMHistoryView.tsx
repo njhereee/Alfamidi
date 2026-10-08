@@ -14,7 +14,6 @@ export default function DPMHistoryView({ storesData }: { storesData?: any[] }) {
 
   const MONTHS = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']
 
-
   useEffect(() => {
     const fetchHistory = async () => {
       try {
@@ -61,8 +60,6 @@ export default function DPMHistoryView({ storesData }: { storesData?: any[] }) {
       </div>
     )
   }
-
-  // Filter by selected month/year
   const filteredHistory = history.filter(row => {
     const dateStr = row.tanggal_kunjungan || row.created_at
     if (!dateStr) return false
@@ -120,10 +117,10 @@ export default function DPMHistoryView({ storesData }: { storesData?: any[] }) {
 
   return (
     <div className="space-y-4">
-      {/* Filter Bar */}
+      
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          {/* Month tabs */}
+          
           <div className="flex gap-1 flex-wrap">
             {MONTHS.map((m, i) => (
               <button
@@ -139,7 +136,7 @@ export default function DPMHistoryView({ storesData }: { storesData?: any[] }) {
               </button>
             ))}
           </div>
-          {/* Year selector */}
+          
           <div className="flex items-center gap-1 ml-2">
             <button onClick={() => setFilterYear(y => y - 1)} className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 font-bold">‹</button>
             <span className="text-sm font-bold text-gray-700 px-1">{filterYear}</span>
@@ -183,7 +180,6 @@ export default function DPMHistoryView({ storesData }: { storesData?: any[] }) {
               </td>
             </tr>
           ) : filteredHistory.map((row, i) => {
-            // Find store name and branch from activeStores if available
             const storeInfo = activeStores?.find(s => s.kode === row.store_kode || s.kodeToko === row.store_kode)
             const namaToko = storeInfo?.nama || storeInfo?.namaToko || '-'
             const branch = row.branch || storeInfo?.branch || 'MIDI BOYOLALI'

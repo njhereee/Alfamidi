@@ -23,9 +23,6 @@ async function run() {
   const content = fs.readFileSync('stores.csv', 'utf8');
   const lines = content.split('\n');
   
-  // Asumsi header ada di baris pertama
-  // Format: No,Branch,Target Ceklist BMT,Nama Toko,NAMA WILAYAH MTC,Nama BMT,NIK BMT,NAMA WILAYAH BMR,Nama BMR,NIK BMR,NAMA WILAYAH BMC,Nama Coordinator,NIK Coordinator,...
-  
   let successCount = 0;
   let errorCount = 0;
   
@@ -35,15 +32,14 @@ async function run() {
     const line = lines[i].trim();
     if (!line) continue;
     
-    // Split by comma tapi handle koma di dalam quotes jika ada (meskipun data contoh tidak punya)
     const cols = line.split(',');
     if (cols.length < 13) continue;
     
     const kodeToko = cols[2].trim();
-    const namaBmt = cols[5].trim() === 'VACANT' ? null : cols[5].trim();
-    const nikBmt = cols[6].trim() === '#N/A' || cols[6].trim() === 'VACANT' || !cols[6].trim() ? null : cols[6].trim();
-    const namaCoordinator = cols[11].trim() === 'VACANT' ? null : cols[11].trim();
-    const nikCoordinator = cols[12].trim() === '#N/A' || cols[12].trim() === 'VACANT' || !cols[12].trim() ? null : cols[12].trim();
+    const namaBmt = cols[5].trim() === 'VACANT' || cols[5].trim() === '#N/A' || !cols[5].trim() ? null : cols[5].trim();
+    const nikBmt = cols[6].trim() === 'VACANT' || cols[6].trim() === '#N/A' || !cols[6].trim() ? null : cols[6].trim();
+    const namaCoordinator = cols[11].trim() === 'VACANT' || cols[11].trim() === '#N/A' || !cols[11].trim() ? null : cols[11].trim();
+    const nikCoordinator = cols[12].trim() === 'VACANT' || cols[12].trim() === '#N/A' || !cols[12].trim() ? null : cols[12].trim();
     
     if (kodeToko) {
       const { error } = await supabase

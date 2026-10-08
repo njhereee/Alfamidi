@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, ChevronUp, Image as ImageIcon, ArrowLeft } from 'lucide-react'
 
-// ─── TEMPLATE FORM (Untuk memetakan ID ke Label dan Kategori) ────────────────
 const formDataTemplate = [
   {
     category: 'A. Area Parkir dan Fasade',
@@ -91,8 +90,6 @@ const formDataTemplate = [
     ]
   }
 ]
-
-// ─── Komponen Badge Status Dinamis ─────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   let styles = 'bg-gray-100 text-gray-500 border-gray-200'
   
@@ -110,8 +107,6 @@ function StatusBadge({ status }: { status: string }) {
     </span>
   )
 }
-
-// ─── Komponen Accordion Kategori ───────────────────────────────────────────────
 function CategoryAccordion({ cat }: { cat: any }) {
   const [open, setOpen] = useState(false)
 
@@ -146,7 +141,7 @@ function CategoryAccordion({ cat }: { cat: any }) {
             <div className="divide-y divide-gray-100">
               {cat.items.map((item: any) => (
                 <div key={item.code} className="p-5 space-y-4 hover:bg-gray-50 transition-colors">
-                  {/* Header Sub-item */}
+                  
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                     <p className="font-bold text-gray-800 text-sm leading-snug flex-1">
                       {item.code}. {item.label}
@@ -156,13 +151,11 @@ function CategoryAccordion({ cat }: { cat: any }) {
                       <span className="text-xs font-bold text-gray-400">Skor: {item.nilaiItem}</span>
                     </div>
                   </div>
-                  
-                  {/* Keterangan */}
+
                   <div className="bg-gray-50/50 p-3 rounded-lg border border-gray-100">
                     <p className="text-gray-600 text-sm"><span className="font-bold text-gray-700">Keterangan:</span> {item.keterangan}</p>
                   </div>
-                  
-                  {/* Foto */}
+
                   {item.photo ? (
                     <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-100 relative max-w-sm">
                       <img
@@ -187,22 +180,16 @@ function CategoryAccordion({ cat }: { cat: any }) {
     </div>
   )
 }
-
-// ─── Main Component ────────────────────────────────────────────────────────────
 export default function RekapDetailView({ data, onBack }: { data: any, onBack: () => void }) {
   const [achievementOpen, setAchievementOpen] = useState(false)
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-
-  // 1. Fetch Data dari Database
   useEffect(() => {
     const fetchDetailData = async () => {
       try {
         setLoading(true)
         const { createClient } = await import('@/frontend/supabase/client')
         const supabase = createClient()
-
-        // Ambil submission_id berdasarkan kode toko yg diklik
         const { data: subData } = await supabase
           .from('fcpt_submissions')
           .select('id')
@@ -210,7 +197,6 @@ export default function RekapDetailView({ data, onBack }: { data: any, onBack: (
           .single()
 
         if (subData?.id) {
-          // Ambil detail items untuk submission ini
           const { data: detailData, error } = await supabase
             .from('fcpt_item_details')
             .select('*')
@@ -228,10 +214,7 @@ export default function RekapDetailView({ data, onBack }: { data: any, onBack: (
 
     if (data?.kodeToko) fetchDetailData()
   }, [data])
-
-  // 2. Olah & Kelompokkan Data Live
   const calculations = useMemo(() => {
-    // a. Perhitungan Rata-rata
     const sipilItems = items.filter(item => /^[A-F]/.test(item.item_id) && item.nilai !== null)
     const mepItems = items.filter(item => /^[G-J]/.test(item.item_id) && item.nilai !== null)
 
@@ -239,8 +222,6 @@ export default function RekapDetailView({ data, onBack }: { data: any, onBack: (
     const avgMep = mepItems.length > 0 ? mepItems.reduce((acc, curr) => acc + curr.nilai, 0) / mepItems.length : 0
 
     const nilaiAkhir = (avgSipil * 0.75) + (avgMep * 0.25)
-
-    // b. Mapping Data ke struktur "dummyCategories" (Accordion)
     const groupedData = formDataTemplate.map(section => {
       
       const answeredItems = items.filter(dbItem => section.items.some(t => t.id === dbItem.item_id))
@@ -249,8 +230,6 @@ export default function RekapDetailView({ data, onBack }: { data: any, onBack: (
       const avgCategory = validAnswers.length > 0
         ? validAnswers.reduce((acc, curr) => acc + curr.nilai, 0) / validAnswers.length
         : 0
-
-      // Ekstrak ID (A, B, C) dan Judul (Area Parkir...) dari "A. Area Parkir..."
       const splitCat = section.category.split('. ')
       const catId = splitCat[0]
       const catTitle = splitCat[1] || section.category
@@ -265,7 +244,7 @@ export default function RekapDetailView({ data, onBack }: { data: any, onBack: (
           photo: dbAnswer?.foto_url || null,
           nilaiItem: dbAnswer?.nilai || 0
         }
-      }).filter(item => item.status !== 'Belum Diisi') // Hanya tampilkan yang sudah diisi
+      }).filter(item => item.status !== 'Belum Diisi')
 
       return {
         id: catId,
@@ -273,7 +252,7 @@ export default function RekapDetailView({ data, onBack }: { data: any, onBack: (
         nilai: Math.round(avgCategory),
         items: displayItems
       }
-    }).filter(cat => cat.items.length > 0) // Hanya tampilkan kategori yang ada isinya
+    }).filter(cat => cat.items.length > 0)
 
     return { 
       avgSipil: Math.round(avgSipil), 
@@ -282,7 +261,6 @@ export default function RekapDetailView({ data, onBack }: { data: any, onBack: (
       groupedData 
     }
   }, [items])
-
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#f4f7fb] gap-4">
@@ -302,7 +280,6 @@ export default function RekapDetailView({ data, onBack }: { data: any, onBack: (
         className="max-w-3xl mx-auto pb-24 px-4 pt-6 space-y-6"
       >
 
-        {/* ── Info Card ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <div className="grid grid-cols-2 gap-y-5 gap-x-4">
             <div>
@@ -324,11 +301,8 @@ export default function RekapDetailView({ data, onBack }: { data: any, onBack: (
           </div>
         </div>
 
-        {/* ── Achievement Accordion ── */}
         <div className="rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm hidden">
-          {/* Bagian ini saya sembunyikan (hidden) sementara karena logic Achievement 
-              membutuhkan agregasi toko keseluruhan, sedangkan page ini fokus di 1 toko. 
-              Hapus class 'hidden' di baris atas jika ingin tetap menampilkannya. */}
+          
           <button
             onClick={() => setAchievementOpen(!achievementOpen)}
             className={`w-full px-5 py-4 flex justify-between items-center transition-colors ${achievementOpen ? 'bg-[#eef2f6]' : 'bg-white hover:bg-gray-50'}`}
@@ -341,7 +315,6 @@ export default function RekapDetailView({ data, onBack }: { data: any, onBack: (
           </button>
         </div>
 
-        {/* ── Nilai Akhir & Rataan ── */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-4 bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between flex-1 pr-4 sm:border-r border-gray-100">
             <span className="font-black text-gray-800 text-sm sm:text-base uppercase tracking-wide">Nilai Akhir</span>
@@ -357,7 +330,6 @@ export default function RekapDetailView({ data, onBack }: { data: any, onBack: (
           </div>
         </div>
 
-        {/* ── Category Accordions (Live Data) ── */}
         <div className="space-y-3">
           {calculations.groupedData.length === 0 ? (
              <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-300">

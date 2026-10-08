@@ -137,7 +137,6 @@ function RegisterForm() {
 
       <div className="w-full max-w-md bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl border border-white/60 dark:border-white/10 p-8 rounded-3xl shadow-[0_8px_40px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_40px_rgb(0,0,0,0.3)] z-10 transition-all duration-300">
 
-        {/* Logo */}
         <div className="flex justify-center items-center mb-8">
           <div className="relative w-[200px] h-[52px]">
             <Image
@@ -157,7 +156,6 @@ function RegisterForm() {
         <form action={register} className="space-y-5">
           {error && <p className="text-red-500 dark:text-red-400 text-sm text-center bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-lg px-4 py-2">{error}</p>}
 
-          {/* Nama Lengkap */}
           <div className="space-y-1.5">
             <label className="block text-[#0c539a] dark:text-blue-300 font-semibold text-sm">Nama Lengkap</label>
             <input
@@ -169,7 +167,6 @@ function RegisterForm() {
             />
           </div>
 
-          {/* NIK */}
           <div className="space-y-1.5">
             <label className="block text-[#0c539a] dark:text-blue-300 font-semibold text-sm">NIK (10 Digit)</label>
             <input
@@ -186,7 +183,6 @@ function RegisterForm() {
             />
           </div>
 
-          {/* Role */}
           <div className="space-y-1.5">
             <label className="block text-[#0c539a] dark:text-blue-300 font-semibold text-sm">Jabatan / Role</label>
             <select
@@ -200,7 +196,6 @@ function RegisterForm() {
             </select>
           </div>
 
-          {/* Password */}
           <div className="space-y-1.5">
             <label className="block text-[#0c539a] dark:text-blue-300 font-semibold text-sm">Password</label>
             <div className="relative">
@@ -217,7 +212,6 @@ function RegisterForm() {
             </div>
           </div>
 
-          {/* Confirm Password */}
           <div className="space-y-1.5">
             <label className="block text-[#0c539a] dark:text-blue-300 font-semibold text-sm">Konfirmasi Password</label>
             <input

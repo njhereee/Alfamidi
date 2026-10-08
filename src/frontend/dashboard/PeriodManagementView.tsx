@@ -28,7 +28,7 @@ export default function PeriodManagementView() {
       
       if (error) {
         console.error("Error fetch periods:", error)
-        if (error.code === '42P01') { // table does not exist in postgres
+        if (error.code === '42P01') {
            console.warn("Tabel 'periods' belum ada di database.")
         }
       } else {
@@ -82,7 +82,6 @@ export default function PeriodManagementView() {
             </div>
           </div>
 
-          {/* Year Selector */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setYear(y => y - 1)}
@@ -100,7 +99,6 @@ export default function PeriodManagementView() {
           </div>
         </div>
 
-        {/* Info Banner */}
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex items-start gap-3">
           <div className="text-blue-500 mt-0.5">ℹ️</div>
           <p className="text-sm text-blue-700">
@@ -119,7 +117,6 @@ export default function PeriodManagementView() {
               const monthNum = idx + 1
               const period = periods.find(p => p.month === monthNum)
               const isCurrentMonth = monthNum === currentMonth && year === currentYear
-              // Default: bulan berjalan otomatis terbuka jika tidak ada pengaturan
               const isOpen = period ? period.is_open : isCurrentMonth
               const key = `${year}-${monthNum}`
               const isSaving = saving === key

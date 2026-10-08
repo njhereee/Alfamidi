@@ -17,17 +17,14 @@ import {
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
-// Menggabungkan props data dengan filterType dari BMTDashboard
 interface BMTRekapDetailViewProps {
   data: any; 
-  filterType: string; // 'Semua' | 'FCPT' | 'Chiller' | 'Genset'
+  filterType: string;
   onBack: () => void;
   setExportFn?: (fn: (() => Promise<void>) | null) => void;
   setShareFn?: (fn: (() => void) | null) => void;
   setIsExporting?: (exporting: boolean) => void;
 }
-
-// ─── TEMPLATE FORM FCPT (A - J Categories) ───────────────────────────────────
 const formDataTemplate = [
   {
     category: 'A. Area Parkir dan Fasade',
@@ -184,14 +181,14 @@ function CategoryAccordion({ cat }: { cat: any }) {
             <div className="divide-y divide-gray-100 dark:divide-slate-800">
               {cat.items.map((item: any) => (
                 <div key={item.code} className="p-5 space-y-3 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
-                  {/* Item header */}
+                  
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                     <div className="flex-1">
                       <p className="font-semibold text-gray-800 dark:text-gray-100 text-sm leading-snug">
                         <span className="text-[#0c539a] dark:text-blue-400 font-bold mr-1.5">{item.code}.</span>
                         {item.label}
                       </p>
-                      {/* Score bar */}
+                      
                       <div className="flex items-center gap-2 mt-2">
                         <span className="text-[11px] text-gray-400 dark:text-slate-500 font-medium">Skor</span>
                         <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300">{item.nilaiItem}</span>
@@ -205,7 +202,6 @@ function CategoryAccordion({ cat }: { cat: any }) {
                     </div>
                   </div>
 
-                  {/* Keterangan */}
                   {item.keterangan && (
                     <div className="bg-blue-50/50 dark:bg-slate-800 border border-blue-100 dark:border-slate-700 rounded-xl px-4 py-3">
                       <p className="text-xs text-gray-500 dark:text-slate-400 font-semibold uppercase tracking-wide mb-0.5">Keterangan</p>
@@ -213,7 +209,6 @@ function CategoryAccordion({ cat }: { cat: any }) {
                     </div>
                   )}
 
-                  {/* Foto */}
                   {item.photo ? (
                     <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 max-w-xs">
                       <img src={item.photo} alt={`Foto ${item.code}`} className="w-full h-auto object-cover max-h-[220px]" loading="lazy" />
@@ -237,17 +232,13 @@ function CategoryAccordion({ cat }: { cat: any }) {
 export default function BMTRekapDetailView({ data, filterType, onBack, setExportFn, setShareFn, setIsExporting: parentSetIsExporting }: BMTRekapDetailViewProps) {
   const [loading, setLoading] = useState(true)
   const [internalIsExporting, setInternalIsExporting] = useState(false)
-  const isExporting = parentSetIsExporting ? false : internalIsExporting // Controlled state override handled by parent
+  const isExporting = parentSetIsExporting ? false : internalIsExporting
   const setIsExporting = parentSetIsExporting || setInternalIsExporting
-
-  // Data State
   const [fcptItems, setFcptItems] = useState<any[]>([])
   const [chillerData, setChillerData] = useState<any>(null)
   const [chillerItems, setChillerItems] = useState<any[]>([])
   const [gensetData, setGensetData] = useState<any>(null)
   const [gensetItems, setGensetItems] = useState<any[]>([])
-
-  // Filter Logika Tab
   const availableTabs = useMemo(() => {
     const tabs = [];
     if (!filterType || filterType === 'Semua' || filterType === 'FCPT') {
@@ -279,8 +270,6 @@ export default function BMTRekapDetailView({ data, filterType, onBack, setExport
         const storeKode = data?.kodeToko
 
         if (!storeKode) return
-
-        // 1. Fetch FCPT (Bangunan)
         const { data: fcptSub } = await supabase
           .from('fcpt_submissions')
           .select('id')
@@ -296,8 +285,6 @@ export default function BMTRekapDetailView({ data, filterType, onBack, setExport
             .eq('submission_id', fcptSub.id)
           setFcptItems(details || [])
         }
-
-        // 2. Fetch Chiller (Equipment Pendingin)
         const { data: chillerSub } = await supabase
           .from('chiller_submissions')
           .select('*')
@@ -314,8 +301,6 @@ export default function BMTRekapDetailView({ data, filterType, onBack, setExport
             .eq('submission_id', chillerSub.id)
           setChillerItems(cDetails || [])
         }
-
-        // 3. Fetch Genset
         const { data: gSub } = await supabase
           .from('genset_submissions')
           .select('*')
@@ -342,8 +327,6 @@ export default function BMTRekapDetailView({ data, filterType, onBack, setExport
 
     fetchAllData()
   }, [data])
-
-  // Calculation FCPT
   const fcptCalculations = useMemo(() => {
     const sipilItems = fcptItems.filter(item => /^[A-F]/.test(item.item_id) && item.nilai !== null)
     const mepItems = fcptItems.filter(item => /^[G-J]/.test(item.item_id) && item.nilai !== null)
@@ -648,8 +631,6 @@ export default function BMTRekapDetailView({ data, filterType, onBack, setExport
               }
             },
           })
-
-          // @ts-ignore
           startY = doc.lastAutoTable.finalY + 12
           if (startY > 270) {
             doc.addPage()
@@ -923,8 +904,6 @@ export default function BMTRekapDetailView({ data, filterType, onBack, setExport
       window.open(waUrl, '_blank')
     }
   }
-
-  // Register functions to parent if props exist
   useEffect(() => {
     if (setExportFn) setExportFn(exportToPDF)
     if (setShareFn) setShareFn(handleShare)
@@ -932,7 +911,7 @@ export default function BMTRekapDetailView({ data, filterType, onBack, setExport
       if (setExportFn) setExportFn(null)
       if (setShareFn) setShareFn(null)
     }
-  }) // No dependencies so it always stays up-to-date with the latest closures
+  })
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#f4f7fb] gap-4">
@@ -945,10 +924,9 @@ export default function BMTRekapDetailView({ data, filterType, onBack, setExport
 
   return (
     <div className="w-full">
-      {/* Header dihapus karena dipindah ke BMTDashboard */}
+      
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl mx-auto space-y-5">
 
-        {/* Info Card Toko */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 dark:border-slate-800 flex items-center gap-2">
             <Building2 size={14} className="text-[#0c539a] dark:text-blue-400" />
@@ -977,7 +955,6 @@ export default function BMTRekapDetailView({ data, filterType, onBack, setExport
           </div>
         </div>
 
-        {/* TAB SWITCHER */}
         {availableTabs.length > 1 && (
           <div className="flex bg-gray-100 dark:bg-slate-800 p-1 rounded-2xl gap-1 border border-gray-200 dark:border-slate-700">
             {availableTabs.some(t => t.id === 'fcpt') && (
@@ -1024,10 +1001,9 @@ export default function BMTRekapDetailView({ data, filterType, onBack, setExport
           </div>
         )}
 
-        {/* TAB CONTENT 1: FCPT */}
         {activeTab === 'fcpt' && (
           <div className="space-y-4">
-            {/* Skor Card */}
+            
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col gap-1">
                 <span className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Nilai Akhir</span>
@@ -1051,7 +1027,6 @@ export default function BMTRekapDetailView({ data, filterType, onBack, setExport
               </div>
             </div>
 
-            {/* Accordions */}
             <div className="space-y-2.5">
               {fcptCalculations.groupedData.length === 0 ? (
                 <div className="text-center py-14 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
@@ -1068,7 +1043,6 @@ export default function BMTRekapDetailView({ data, filterType, onBack, setExport
           </div>
         )}
 
-        {/* TAB CONTENT 2: CHILLER */}
         {activeTab === 'chiller' && (
           <div className="space-y-4">
             {!chillerData ? (
@@ -1079,7 +1053,7 @@ export default function BMTRekapDetailView({ data, filterType, onBack, setExport
               </div>
             ) : (
               <>
-                {/* Summary Chiller */}
+                
                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
                   <div className="px-5 py-4 flex justify-between items-start">
                     <div>
@@ -1141,7 +1115,6 @@ export default function BMTRekapDetailView({ data, filterType, onBack, setExport
           </div>
         )}
 
-        {/* TAB CONTENT 3: GENSET */}
         {activeTab === 'genset' && (
           <div className="space-y-4">
             {!gensetData ? (
@@ -1152,7 +1125,7 @@ export default function BMTRekapDetailView({ data, filterType, onBack, setExport
               </div>
             ) : (
               <>
-                {/* Summary Genset */}
+                
                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
                   <div className="px-5 py-4 flex justify-between items-start">
                     <div>

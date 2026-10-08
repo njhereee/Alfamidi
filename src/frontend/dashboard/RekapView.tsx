@@ -24,49 +24,36 @@ type StoreData = {
 const COLORS = ['#0c539a', '#cc1e2c', '#f59e0b', '#10b981', '#6366f1', '#ec4899', '#94a3b8']
 
 export default function RekapView({ onSelectDetail }: { onSelectDetail?: (item: any) => void }) {
-  // Filter States
   const [filterTanggal, setFilterTanggal] = useState('')
   const [filterBranch, setFilterBranch] = useState('')
   const [filterPic, setFilterPic] = useState('')
   const [filterKodeToko, setFilterKodeToko] = useState('')
   const [selectedItem, setSelectedItem] = useState<any>(null)
-
-  // Data States
   const [rawStoresData, setRawStoresData] = useState<StoreData[]>([])
   const [loading, setLoading] = useState(true)
-
-  // Fetch Data dari Supabase
  useEffect(() => {
   const fetchRekapData = async () => {
     try {
       setLoading(true)
       const { createClient } = await import('@/frontend/supabase/client')
       const supabase = createClient()
-
-      // 1. Ambil semua stores
       const { data: storesData, error: storesError } = await supabase
         .from('stores')
         .select('id, kode, nama, branch, nama_bmt')
         .order('branch', { ascending: true })
 
       if (storesError) throw storesError
-
-      // 2. Ambil data submission dari VIEW yang baru dibuat
       const { data: submissionsData, error: subError } = await supabase
-        .from('view_rekap_fcpt') // <-- Memanggil View, bukan tabel fcpt_submissions
+        .from('view_rekap_fcpt')
         .select('store_kode, submitted_at, nilai_akhir, jml_terceklist')
 
       if (subError) throw subError
-
-      // Mapping submission berdasarkan store_kode
       const subMap: Record<string, any> = {}
       if (submissionsData) {
         submissionsData.forEach((sub: any) => {
           subMap[sub.store_kode] = sub
         })
       }
-
-      // 3. Gabungkan Data Store dengan Data Submission
       const merged: StoreData[] = (storesData || []).map(store => {
         const sub = subMap[store.kode]
         return {
@@ -77,7 +64,6 @@ export default function RekapView({ onSelectDetail }: { onSelectDetail?: (item: 
           namaPic: store.nama_bmt || 'Tanpa PIC',
           isDone: !!sub,
           submittedAt: sub?.submitted_at || null,
-          // Sekarang mengambil nilai langsung dari View yang sudah dihitung database
           nilaiAkhir: sub?.nilai_akhir ?? 0, 
           jmlTerceklist: sub?.jml_terceklist ?? 0 
         }
@@ -93,24 +79,17 @@ export default function RekapView({ onSelectDetail }: { onSelectDetail?: (item: 
 
   fetchRekapData()
 }, [])
-
-  // Mengelola Data sesuai Filter
   const filteredData = useMemo(() => {
     return rawStoresData.filter(item => {
       const matchBranch = filterBranch === '' || item.branch === filterBranch
       const matchPic = filterPic === '' || item.namaPic === filterPic
       const matchKode = filterKodeToko === '' || item.kodeToko.toLowerCase().includes(filterKodeToko.toLowerCase())
-      // Format Tanggal HTML Date input = YYYY-MM-DD. 
       const matchDate = filterTanggal === '' || (item.submittedAt && item.submittedAt.startsWith(filterTanggal))
       
       return matchBranch && matchPic && matchKode && matchDate
     })
   }, [rawStoresData, filterBranch, filterPic, filterKodeToko, filterTanggal])
-
-  // Menyiapkan Data KPI
   const kpiTerceklist = filteredData.filter(d => d.isDone).length
-
-  // Menyiapkan Data untuk Bar Chart (Sudah vs Belum Terceklist per Cabang)
   const barChartData = useMemo(() => {
     const stats: Record<string, { name: string, terceklist: number, belumTerceklist: number }> = {}
     
@@ -124,11 +103,9 @@ export default function RekapView({ onSelectDetail }: { onSelectDetail?: (item: 
 
     return Object.values(stats)
   }, [filteredData])
-
-  // Menyiapkan Data untuk Pie Chart (Distribusi Cabang yang sudah diceklist)
   const pieChartData = useMemo(() => {
     const doneStores = filteredData.filter(d => d.isDone)
-    const totalDone = doneStores.length || 1 // Hindari division by zero
+    const totalDone = doneStores.length || 1
     const pieMap: Record<string, number> = {}
 
     doneStores.forEach(d => {
@@ -139,8 +116,6 @@ export default function RekapView({ onSelectDetail }: { onSelectDetail?: (item: 
       name: branch,
       value: Number(((pieMap[branch] / totalDone) * 100).toFixed(1))
     })).sort((a, b) => b.value - a.value)
-
-    // Ambil Top 5, sisanya masuk ke "Lainnya" agar chart tidak terlalu penuh
     if (pieArray.length > 6) {
       const top5 = pieArray.slice(0, 5)
       const lainnyaValue = pieArray.slice(5).reduce((acc, curr) => acc + curr.value, 0)
@@ -149,8 +124,6 @@ export default function RekapView({ onSelectDetail }: { onSelectDetail?: (item: 
 
     return pieArray
   }, [filteredData])
-
-  // Opsi Dropdown Unik
   const uniqueBranches = Array.from(new Set(rawStoresData.map(d => d.branch))).sort()
   const uniquePics = Array.from(new Set(rawStoresData.map(d => d.namaPic))).sort()
 
@@ -182,8 +155,7 @@ export default function RekapView({ onSelectDetail }: { onSelectDetail?: (item: 
         <h2 className="text-xl font-bold text-gray-800 mb-6 border-b border-gray-100 pb-4">Monitoring Ceklist Bangunan (FCPT ONLINE)</h2>
         
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          
-          {/* Kolom Kiri: Filter */}
+
           <div className="lg:col-span-1 space-y-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Rentang Tanggal</label>
@@ -247,7 +219,6 @@ export default function RekapView({ onSelectDetail }: { onSelectDetail?: (item: 
             </div>
           </div>
 
-          {/* Kolom Tengah: KPI */}
           <div className="lg:col-span-1 flex flex-col justify-center">
             <div className="bg-gradient-to-br from-[#0c539a] to-blue-800 rounded-2xl p-6 text-white shadow-md text-center h-full flex flex-col justify-center transform transition hover:scale-105">
               <p className="text-blue-200 font-semibold mb-2">Jml Terceklist</p>
@@ -255,7 +226,6 @@ export default function RekapView({ onSelectDetail }: { onSelectDetail?: (item: 
             </div>
           </div>
 
-          {/* Kolom Kanan: Donut Chart */}
           <div className="lg:col-span-2 flex justify-center items-center bg-gray-50 rounded-2xl border border-gray-100 p-4">
             <div className="w-full h-[300px]">
               {pieChartData.length > 0 ? (
@@ -290,7 +260,6 @@ export default function RekapView({ onSelectDetail }: { onSelectDetail?: (item: 
         </div>
       </div>
 
-      {/* Tabel */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto overflow-y-auto max-h-[400px]">
           <table className="w-full text-sm text-left relative">
@@ -338,7 +307,6 @@ export default function RekapView({ onSelectDetail }: { onSelectDetail?: (item: 
         </div>
       </div>
 
-      {/* Bar Chart */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
           Jumlah Toko Terchecklist vs Belum Terchecklist

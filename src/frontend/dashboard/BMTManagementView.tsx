@@ -26,8 +26,6 @@ export default function BMTManagementView({ userBranch, userRole, userNik, userN
   const [bmts, setBmts] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  
-  // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedStore, setSelectedStore] = useState<Store | null>(null)
   const [selectedBmtNik, setSelectedBmtNik] = useState<string>('')
@@ -40,9 +38,6 @@ export default function BMTManagementView({ userBranch, userRole, userNik, userN
       const supabase = createClient()
       
       let storesQuery = supabase.from('stores').select('id, kode, nama, branch, nama_bmt, nik_bmt').order('branch', { ascending: true })
-      
-      // Jika koordinator cabang, filter by nik_coordinator atau nama_coordinator
-      // HO bisa melihat semua
       if (userRole === 'koordinator_cabang' || userRole === 'manager_cabang') {
         if (userNik && userName) {
           storesQuery = storesQuery.or(`nik_coordinator.eq."${userNik}",nama_coordinator.ilike."%${userName}%"`)
@@ -51,7 +46,6 @@ export default function BMTManagementView({ userBranch, userRole, userNik, userN
         } else if (userName) {
           storesQuery = storesQuery.ilike('nama_coordinator', `%${userName}%`)
         } else if (userBranch) {
-          // Fallback ke branch jika NIK/Nama tidak tersedia
           storesQuery = storesQuery.ilike('branch', `%${userBranch}%`)
         }
       }
@@ -107,8 +101,6 @@ export default function BMTManagementView({ userBranch, userRole, userNik, userN
         .eq('id', selectedStore.id)
 
       if (error) throw error
-      
-      // Update local state
       setStores(stores.map(s => s.id === selectedStore.id ? { ...s, ...payload } : s))
       setIsModalOpen(false)
       
@@ -227,7 +219,6 @@ export default function BMTManagementView({ userBranch, userRole, userNik, userN
         </div>
       )}
 
-      {/* Modal Atur BMT */}
       <AnimatePresence>
         {isModalOpen && selectedStore && (
           <motion.div

@@ -7,7 +7,6 @@ import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
-// Animated canvas background
 function AnimatedBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -26,8 +25,6 @@ function AnimatedBackground() {
       h = canvas.height = window.innerHeight
     }
     window.addEventListener('resize', onResize)
-
-    // Lines config
     const NUM_LINES = 12
     type Line = { x: number; y: number; vx: number; vy: number; len: number; opacity: number }
     const lines: Line[] = Array.from({ length: NUM_LINES }, () => ({
@@ -53,8 +50,6 @@ function AnimatedBackground() {
 
     function draw() {
       ctx.clearRect(0, 0, w, h)
-
-      // Moving lines
       for (const ln of lines) {
         ln.x += ln.vx
         ln.y += ln.vy
@@ -71,8 +66,6 @@ function AnimatedBackground() {
         ctx.lineWidth = 1
         ctx.stroke()
       }
-
-      // Dots
       for (const d of dots) {
         d.x += d.vx
         d.y += d.vy
@@ -86,8 +79,6 @@ function AnimatedBackground() {
         ctx.fillStyle = 'rgba(28, 100, 165, 0.12)'
         ctx.fill()
       }
-
-      // Connections between dots
       for (let i = 0; i < dots.length; i++) {
         for (let j = i + 1; j < dots.length; j++) {
           const dx = dots[i].x - dots[j].x
@@ -131,19 +122,15 @@ function LoginForm() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-red-50 dark:from-slate-900 dark:via-slate-900 dark:to-blue-950 flex flex-col justify-center items-center px-6 relative overflow-hidden transition-colors duration-300">
 
-      {/* Animated canvas background */}
       <AnimatedBackground />
 
-      {/* Theme toggle */}
       <ThemeToggle />
 
-      {/* Soft gradient orbs */}
       <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-red-300/20 dark:bg-red-500/10 rounded-full blur-3xl pointer-events-none z-0" />
       <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-300/20 dark:bg-blue-500/10 rounded-full blur-3xl pointer-events-none z-0" />
 
       <div className="w-full max-w-md bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl border border-white/60 dark:border-white/10 p-8 rounded-3xl shadow-[0_8px_40px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_40px_rgb(0,0,0,0.3)] z-10 transition-all duration-300">
 
-        {/* Logo Section */}
         <div className="flex justify-center items-center mb-10">
           <div className="relative w-[200px] h-[52px]">
             <Image

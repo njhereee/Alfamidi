@@ -48,8 +48,6 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
   const [sahkanTarget, setSahkanTarget] = useState<any>(null)
   const [sahkanRole, setSahkanRole] = useState('')
   const [isSahkan, setIsSahkan] = useState(false)
-
-  // Fetch pending users dari Supabase
   useEffect(() => {
     const fetchPending = async () => {
       const { createClient } = await import('@/frontend/supabase/client')
@@ -90,8 +88,6 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
     setSahkanRole('')
     setIsSahkan(false)
   }
-
-  // States untuk form profil
   const [profileImage, setProfileImage] = useState<string | null>(metadata?.avatar_url || null)
   const [fileToUpload, setFileToUpload] = useState<File | null>(null)
   const [fullName, setFullName] = useState(metadata?.full_name || '')
@@ -99,22 +95,14 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
   const cabang = 'Head Office'
   const [isSaving, setIsSaving] = useState(false)
   const router = useRouter()
-
-  // State untuk Data Checklist
   const [checklists, setChecklists] = useState<any[]>([])
-  
-  // State untuk Data Modul
   const [modules, setModules] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
-  
-  // State untuk Form Tambah/Edit Checklist
   const [editItemId, setEditItemId] = useState<string | null>(null)
   const [newChecklistName, setNewChecklistName] = useState('')
   const [newChecklistIcon, setNewChecklistIcon] = useState<File | null>(null)
   const [newChecklistIconPreview, setNewChecklistIconPreview] = useState<string | null>(null)
   const [isAddingChecklist, setIsAddingChecklist] = useState(false)
-
-  // State untuk Form Tambah/Edit Modul
   const [editModulId, setEditModulId] = useState<string | null>(null)
   const [newModulName, setNewModulName] = useState('')
   const [newModulIcon, setNewModulIcon] = useState<File | null>(null)
@@ -437,8 +425,7 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
 
   return (
     <div className="flex h-screen bg-[#f4f7fb] overflow-hidden font-sans">
-      
-      {/* --- SIDEBAR --- */}
+
       <div className="w-72 bg-white border-r border-gray-200 flex flex-col shadow-sm z-20 flex-shrink-0">
         <div className="px-5 py-3 border-b border-gray-100 flex flex-col gap-0.5">
           <NextImage 
@@ -522,10 +509,8 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
         </div>
       </div>
 
-      {/* --- MAIN CONTENT AREA --- */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden bg-[#f4f7fb]">
-        
-        {/* Header */}
+
         <header className="bg-white border-b border-gray-200 px-8 py-6 flex justify-between items-center z-10 shadow-sm relative">
           <div className="flex items-center gap-4">
             {currentView !== 'dashboard' && (
@@ -598,7 +583,6 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
           </div>
         </header>
 
-        {/* Scrollable Content */}
         <main className="flex-1 overflow-y-auto p-8 relative">
           
           <AnimatePresence mode="wait">
@@ -996,7 +980,6 @@ export default function HODashboard({ nik, metadata }: { nik: string, metadata: 
         </main>
       </div>
 
-      {/* ── Modal Sahkan Role ───────────────────────────────────────────────── */}
       <AnimatePresence>
         {sahkanTarget && (
           <motion.div

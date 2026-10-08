@@ -27,7 +27,6 @@ import { useRouter } from 'next/navigation'
 import NextImage from 'next/image'
 import { ThemeToggleInline } from '@/components/ThemeToggle'
 
-// Import View yang terhubung dengan Supabase
 import BMTManagementView from './BMTManagementView'
 import ChecklistDetailView from './ChecklistDetailView'
 import FCPTFormView from './FCPTFormView'
@@ -46,36 +45,24 @@ const defaultChecklists = [
 
 export default function ManagerDashboard({ nik, metadata }: { nik: string, metadata: any }) {
   const router = useRouter()
-  
-  // State Navigasi
   const [activeTab, setActiveTab] = useState<'Home' | 'Profiles' | 'Modul' | 'Rekap' | 'Atur BMT'>('Home')
   const [currentView, setCurrentView] = useState<'dashboard' | 'storeList' | 'fcptForm' | 'chillerForm' | 'gensetForm' | 'dpmForm'>('dashboard')
-  
-  // State Rekap Detail — diangkat ke sini agar tombol back/share/export bisa di header utama
   const [rekapDetail, setRekapDetail] = useState<{ item: any; filterType: string } | null>(null)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
   const exportFnRef = useRef<(() => Promise<void>) | null>(null)
   const shareFnRef = useRef<(() => void) | null>(null)
-
-  // State Kategori & Toko Terpilih
   const [activeCategory, setActiveCategory] = useState<any>(null)
   const [selectedStore, setSelectedStore] = useState<any>(null)
   const [isNotifOpen, setIsNotifOpen] = useState(false)
   const [modules, setModules] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
-  
-  // State Sidebar Mobile
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-
-  // --- STATE UNTUK FORM PROFIL ---
   const [profileImage, setProfileImage] = useState<string | null>(metadata?.avatar_url || null)
   const [fileToUpload, setFileToUpload] = useState<File | null>(null)
   const [fullName, setFullName] = useState(metadata?.full_name || '')
   const [jabatan, setJabatan] = useState(metadata?.jabatan || '')
   const [cabang, setCabang] = useState(metadata?.cabang || '')
   const [isSaving, setIsSaving] = useState(false)
-
-  // Ambil modul SOP
   useEffect(() => {
     const fetchModules = async () => {
       const { createClient } = await import('@/frontend/supabase/client')
@@ -101,8 +88,6 @@ export default function ManagerDashboard({ nik, metadata }: { nik: string, metad
     await supabase.auth.signOut()
     router.push('/login')
   }
-
-  // --- HANDLER UNTUK PROFIL ---
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -167,10 +152,6 @@ export default function ManagerDashboard({ nik, metadata }: { nik: string, metad
     { name: 'Rekap', label: 'Rekap Data', icon: FileSpreadsheet },
     { name: 'Atur BMT', label: 'Atur BMT', icon: Users },
   ] as const
-
-  // -------------------------------------------------------------
-  // RENDER UNTUK SUB-VIEWS (Form / List)
-  // -------------------------------------------------------------
   if (currentView === 'gensetForm' && selectedStore) {
     return (
       <div className="min-h-screen bg-[#f4f7fb] dark:bg-slate-950 pb-12 font-sans">
@@ -302,14 +283,9 @@ export default function ManagerDashboard({ nik, metadata }: { nik: string, metad
       </div>
     )
   }
-
-  // -------------------------------------------------------------
-  // VIEW 1: DASHBOARD UTAMA
-  // -------------------------------------------------------------
   return (
     <div className="flex h-screen bg-[#f4f7fb] dark:bg-slate-950 overflow-hidden font-sans relative">
-      
-      {/* OVERLAY BACKGROUND MOBILE */}
+
       {isSidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity"
@@ -317,12 +293,10 @@ export default function ManagerDashboard({ nik, metadata }: { nik: string, metad
         />
       )}
 
-      {/* SIDEBAR RESPONSIVE */}
       <aside className={`fixed md:static inset-y-0 left-0 z-50 w-72 bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 flex flex-col shadow-lg md:shadow-sm flex-shrink-0 transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="px-5 py-3 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between gap-2">
           <NextImage src="/images/alfamidi-logo-white.png" alt="Alfamidi" width={90} height={50} className="object-contain" />
-          
-          {/* Tombol Tutup Sidebar untuk Mobile */}
+
           <button 
             onClick={() => setIsSidebarOpen(false)} 
             className="p-2 md:hidden text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 bg-gray-50 dark:bg-slate-800 rounded-lg"
@@ -331,7 +305,6 @@ export default function ManagerDashboard({ nik, metadata }: { nik: string, metad
           </button>
         </div>
 
-        {/* KLIK PROFIL DIARAHKAN KE TAB 'Profiles' */}
         <div 
           onClick={() => { setActiveTab('Profiles'); setIsSidebarOpen(false); }}
           className={`p-5 border-b border-gray-100 dark:border-slate-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition ${activeTab === 'Profiles' ? 'bg-gray-50 dark:bg-slate-800' : ''}`}
@@ -377,14 +350,11 @@ export default function ManagerDashboard({ nik, metadata }: { nik: string, metad
         </div>
       </aside>
 
-      {/* AREA KONTEN UTAMA */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden bg-[#f4f7fb] dark:bg-slate-950 w-full">
-        
-        {/* HEADER */}
+
         <header className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 px-4 md:px-8 py-4 flex justify-between items-center z-10 shadow-sm relative">
           <div className="flex items-center gap-3 md:gap-4">
-            
-            {/* Tombol Buka Sidebar untuk Mobile */}
+
             {!rekapDetail && (
               <button 
                 onClick={() => setIsSidebarOpen(true)} 
@@ -394,7 +364,6 @@ export default function ManagerDashboard({ nik, metadata }: { nik: string, metad
               </button>
             )}
 
-            {/* Tombol Kembali (hanya muncul saat rekapDetail aktif) */}
             {rekapDetail && (
               <button 
                 onClick={() => setRekapDetail(null)} 
@@ -405,7 +374,6 @@ export default function ManagerDashboard({ nik, metadata }: { nik: string, metad
             )}
           </div>
 
-          {/* Tombol kanan: action buttons + notif + theme toggle */}
           <div className="flex items-center gap-2">
             {rekapDetail && (
               <>
@@ -439,13 +407,11 @@ export default function ManagerDashboard({ nik, metadata }: { nik: string, metad
           </div>
         </header>
 
-        {/* MAIN BODY */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
           <div className="max-w-6xl mx-auto space-y-6">
 
             <AnimatePresence mode="wait">
-              
-              {/* --- TAB PROFIL --- */}
+
               {activeTab === 'Profiles' && (
                 <motion.div key="profile-tab" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="max-w-xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-5 md:p-8 flex flex-col items-center">
                   <div className="relative mb-6 md:mb-8 group cursor-pointer">
@@ -487,7 +453,6 @@ export default function ManagerDashboard({ nik, metadata }: { nik: string, metad
                 </motion.div>
               )}
 
-              {/* --- TAB BERANDA --- */}
               {activeTab === 'Home' && (
                 <motion.div key="home-tab" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
                   <h2 className="text-sm md:text-base font-extrabold text-gray-800 dark:text-gray-100 tracking-tight flex items-center gap-2">Pilih Menu Inspection</h2>
@@ -506,7 +471,6 @@ export default function ManagerDashboard({ nik, metadata }: { nik: string, metad
                 </motion.div>
               )}
 
-              {/* --- TAB MODUL --- */}
               {activeTab === 'Modul' && (
                 <motion.div key="modul-tab" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
                   <div className="mb-6 md:mb-8">
@@ -531,16 +495,12 @@ export default function ManagerDashboard({ nik, metadata }: { nik: string, metad
                 </motion.div>
               )}
 
-
-
-              {/* --- TAB ATUR BMT --- */}
               {activeTab === 'Atur BMT' && (
                 <motion.div key="atur-bmt-tab" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}>
                   <BMTManagementView userRole={metadata?.role} userBranch={cabang} userNik={nik} userName={metadata?.full_name} />
                 </motion.div>
               )}
 
-              {/* --- TAB REKAP --- */}
               {activeTab === 'Rekap' && (
                 <motion.div key="rekap-tab" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}>
                   {rekapDetail ? (

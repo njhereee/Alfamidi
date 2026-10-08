@@ -18,7 +18,6 @@ export type ChecklistItemDef = {
   scoreKind: ChecklistScoreKind
 }
 
-/** Item dengan opsi tambahan TIDAK ADA (selain OKE / NOK) */
 export const OKE_NOK_TIDAK_ADA_ITEM_IDS = new Set([
   'F_PINTU',
   'F_GASKET',
@@ -71,12 +70,10 @@ export function checklistOptionsForItem(item: ChecklistItemDef): readonly string
     : OKE_NOK_OPTIONS
 }
 
-/** Hanya OKE = 1 poin */
 export function scoreFromChecklistAnswer(status: string): number {
   return status === 'OKE' ? 1 : 0
 }
 
-/** Jumlah item checklist per jenis unit (sesuai spreadsheet) */
 export const CHECKLIST_COUNT_BY_EQUIPMENT: Record<EquipmentType, number> = {
   open_chiller: 12,
   glass_chiller_1p: 11,
@@ -107,7 +104,6 @@ const TECHNICAL_ITEM_IDS: string[] = [
   'T_THERMO',
 ]
 
-/** Matriks kondisi fisik per jenis unit (sesuai spreadsheet) */
 const PHYSICAL_BY_EQUIPMENT: Record<EquipmentType, string[]> = {
   open_chiller: ['F_BODY', 'F_RODA', 'F_LAMPU', 'F_PLASTIC'],
   glass_chiller_1p: ['F_PINTU', 'F_GASKET', 'F_BODY', 'F_RODA', 'F_LAMPU'],
@@ -146,7 +142,6 @@ export function equipmentTypeLabel(value: string): string {
 
 export const CHILLER_EQUIPMENT_CHECKLIST_TOTAL = EQUIPMENT_TYPES.length
 
-/** Cocokkan nilai jenis_mesin di DB (label atau value) ke tipe equipment */
 export function normalizeEquipmentTypeFromSubmission(
   jenisMesin: string | null | undefined
 ): EquipmentType | null {
@@ -166,7 +161,6 @@ export function normalizeEquipmentTypeFromSubmission(
   return null
 }
 
-/** Langkah form: spesifikasi → kondisi fisik (dinamis) → teknis → filter (hanya open chiller) */
 export function buildChillerSteps(equipmentType: string): ChillerFormStep[] {
   const steps: ChillerFormStep[] = [
     { category: '1. Spesifikasi Unit', isSpecsStep: true },
@@ -200,7 +194,6 @@ export function buildChillerSteps(equipmentType: string): ChillerFormStep[] {
   return steps
 }
 
-/** Semua item checklist yang wajib untuk jenis unit terpilih (untuk validasi & skor) */
 export function allChecklistItemsForType(equipmentType: string): ChecklistItemDef[] {
   const steps = buildChillerSteps(equipmentType)
   return steps.flatMap((s) => ('items' in s && s.items ? s.items : []))

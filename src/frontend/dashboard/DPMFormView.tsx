@@ -50,7 +50,6 @@ export default function DPMFormView({ store, userNik, nik, userNama, metadata, o
         (err) => {
           console.error("Gagal mendapatkan lokasi:", err)
           setLocationLoading(false)
-          // Fallback dummy location for demo purposes if blocked
           setLocation({ lat: -7.084822, lng: 110.361226 })
         }
       )
@@ -70,8 +69,6 @@ export default function DPMFormView({ store, userNik, nik, userNama, metadata, o
       const { createClient } = await import('@/frontend/supabase/client')
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-
-      // Ensure dpm_submissions table is created in Supabase before testing
       let submitPayload: any = {
         store_kode: store?.kodeToko || store?.kode,
         branch: store?.branch || 'MIDI BOYOLALI',
@@ -108,14 +105,12 @@ export default function DPMFormView({ store, userNik, nik, userNama, metadata, o
       alert("Terjadi kesalahan sistem.")
     }
   }
-
-  // Format the header date to dd/mm/yyyy
   const headerDateParts = tanggal.split('-')
   const headerDate = headerDateParts.length === 3 ? `${headerDateParts[2]}/${headerDateParts[1]}/${headerDateParts[0]}` : tanggal
 
   return (
     <div className="fixed inset-0 bg-white z-50 overflow-y-auto flex flex-col">
-      {/* HEADER */}
+      
       <div className="sticky top-0 bg-white z-40 px-4 md:px-6 py-4 flex items-center justify-between border-b border-gray-100">
         <div className="flex items-center gap-4">
           <button onClick={onBack} className="text-gray-500 hover:text-gray-800 transition-colors">
@@ -139,11 +134,9 @@ export default function DPMFormView({ store, userNik, nik, userNama, metadata, o
         </div>
       </div>
 
-      {/* FORM BODY */}
       <div className="flex-1 w-full max-w-2xl mx-auto px-6 py-8 pb-24">
         <div className="space-y-6">
-          
-          {/* Kode Toko */}
+
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-600">Kode Toko<span className="text-[#e1251b] ml-1">*</span></label>
             <input 
@@ -154,7 +147,6 @@ export default function DPMFormView({ store, userNik, nik, userNama, metadata, o
             />
           </div>
 
-          {/* Nama Toko */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-600">Nama Toko<span className="text-[#e1251b] ml-1">*</span></label>
             <input 
@@ -165,7 +157,6 @@ export default function DPMFormView({ store, userNik, nik, userNama, metadata, o
             />
           </div>
 
-          {/* Branch */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-600 block">Branch<span className="text-[#e1251b] ml-1">*</span></label>
             <div className="inline-block border border-gray-300 rounded-full px-5 py-2 text-sm font-medium text-gray-800 bg-white">
@@ -173,7 +164,6 @@ export default function DPMFormView({ store, userNik, nik, userNama, metadata, o
             </div>
           </div>
 
-          {/* NIK */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-600">NIK<span className="text-[#e1251b] ml-1">*</span></label>
             <input 
@@ -184,7 +174,6 @@ export default function DPMFormView({ store, userNik, nik, userNama, metadata, o
             />
           </div>
 
-          {/* Wilayah Coor */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-600">Wilayah Coor<span className="text-[#e1251b] ml-1">*</span></label>
             <input 
@@ -195,7 +184,6 @@ export default function DPMFormView({ store, userNik, nik, userNama, metadata, o
             />
           </div>
 
-          {/* Tanggal Kunjungan */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-600">Tanggal Kunjungan<span className="text-[#e1251b] ml-1">*</span></label>
             <input 
@@ -206,7 +194,6 @@ export default function DPMFormView({ store, userNik, nik, userNama, metadata, o
             />
           </div>
 
-          {/* Pekerjaan Rutin */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-600">Pekerjaan Rutin<span className="text-[#e1251b] ml-1">*</span></label>
             <div className="relative">
@@ -262,7 +249,6 @@ export default function DPMFormView({ store, userNik, nik, userNama, metadata, o
             </motion.div>
           )}
 
-          {/* Pekerjaan Non Rutin */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-600">Pekerjaan Non Rutin<span className="text-[#e1251b] ml-1">*</span></label>
             <div className="relative">
@@ -318,7 +304,6 @@ export default function DPMFormView({ store, userNik, nik, userNama, metadata, o
             </motion.div>
           )}
 
-          {/* Konfirmasi Lokasi */}
           <div className="space-y-2 pt-4">
             <label className="text-sm font-medium text-gray-600">Konfirmasi Lokasi</label>
             <div className="relative">

@@ -40,17 +40,15 @@ export default function ChecklistDetailView({
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedCabang, setSelectedCabang] = useState('')
-  const [isPeriodOpen, setIsPeriodOpen] = useState(true) // default open
+  const [isPeriodOpen, setIsPeriodOpen] = useState(true)
   
   const [dpmTab, setDpmTab] = useState<'toko' | 'riwayat'>('toko')
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
-  
-  // State otomatis dari Supabase Login
   const [userRole, setUserRole] = useState('')
   const [currentUserBmtName, setCurrentUserBmtName] = useState('')
-  const [selectedBmt, setSelectedBmt] = useState('') // Dropdown filter untuk HO/Admin
+  const [selectedBmt, setSelectedBmt] = useState('')
 
   const chillerChecklist = isChillerEquipmentChecklist(checklist)
   const isDpmCategory = checklist?.title?.toLowerCase().includes('dpm') || checklist?.id === 1
@@ -61,21 +59,15 @@ export default function ChecklistDetailView({
       try {
         const { createClient } = await import('@/frontend/supabase/client')
         const supabase = createClient()
-
-        // Check if selected period is open
         const { data: periodData } = await supabase
           .from('periods')
           .select('is_open')
           .eq('year', selectedYear)
           .eq('month', selectedMonth)
           .single()
-        // If no record exists, default is true ONLY if it's the current month/year
         const now = new Date()
         const isCurrentMonth = selectedYear === now.getFullYear() && selectedMonth === (now.getMonth() + 1)
         setIsPeriodOpen(periodData ? periodData.is_open : isCurrentMonth)
-
-
-        // 1. CEK USER YANG LOGIN
         const { data: { user }, error: authError } = await supabase.auth.getUser()
         if (authError) throw authError
 
@@ -83,16 +75,15 @@ export default function ChecklistDetailView({
         let currentName = ''
 
         if (user) {
-          // AMBIL ROLE DAN NAMA DARI TABEL PROFILES (Menggunakan full_name)
           const { data: profile } = await supabase
             .from('profiles') 
-            .select('role, full_name') // Berubah di sini
+            .select('role, full_name')
             .eq('id', user.id)
             .single()
 
           if (profile) {
             currentRole = profile.role || 'BMT'
-            currentName = profile.full_name || '' // Berubah di sini
+            currentName = profile.full_name || '' 
           } else if (user.user_metadata) {
             currentRole = user.user_metadata.role || 'BMT'
             currentName = user.user_metadata.full_name || user.user_metadata.name || ''
@@ -101,19 +92,12 @@ export default function ChecklistDetailView({
 
         setUserRole(currentRole)
         setCurrentUserBmtName(currentName)
-
-        // 2. FETCH SEMUA TOKO
-        // (Catatan: Kolom di tabel stores tetap nama_bmt)
         const { data: storesData, error: storesError } = await supabase
           .from('stores')
           .select('id, kode, nama, branch, nama_bmt')
           .order('branch', { ascending: true })
 
         if (storesError) throw storesError
-
-        // 3. FETCH SUBMISSION (Untuk status checklist)
-
-// Tentukan nama tabel berdasarkan title dari props 'checklist'
 let tableName = 'fcpt_submissions'
 const categoryTitle = (checklist?.title ?? '').replace(/\s+/g, ' ').toLowerCase()
 
@@ -179,7 +163,6 @@ if (isChillerChecklist) {
     }
   })
 } else if (isDpmCategory) {
-  // DPM: Cek apakah ADA SATU SAJA submission dari fcpt, chiller, atau genset
   const [
     { data: fcptSub },
     { data: chillerSub },
@@ -221,7 +204,7 @@ if (isChillerChecklist) {
     dpm_submitted_at: dpmMap[s.kode] || undefined,
     checklist_done_count: doneMap[s.kode] ? 1 : 0,
     checklist_total: 1,
-    is_done: !!doneMap[s.kode], // Jika ada salah satu, is_done = true
+    is_done: !!doneMap[s.kode],
   }))
 } else {
   const { data: submissions, error: subError } = await supabase
@@ -257,19 +240,12 @@ setStores(merged)
     }
     fetchData()
   }, [checklist?.id, checklist?.title, selectedMonth, selectedYear])
-
-  // ==============================
-  // LOGIKA FILTERING (CASE-INSENSITIVE)
-  // ==============================
   const isBMT = userRole.toUpperCase() === 'BMT'
 
   const filteredStores = stores.filter(store => {
     const storeBmt = (store.nama_bmt || '').trim().toLowerCase()
     const targetBmt = currentUserBmtName.trim().toLowerCase()
     const filterBmtSelection = selectedBmt.trim().toLowerCase()
-
-    // Jika BMT -> Filter ketat sesuai namanya
-    // Jika BUKAN BMT (HO/Admin) -> Bebas lihat semua atau pilih via dropdown
     const isAllowedToSee = isBMT 
       ? (targetBmt !== '' && storeBmt === targetBmt)
       : (selectedBmt === '' || storeBmt === filterBmtSelection)
@@ -282,12 +258,10 @@ setStores(merged)
     
     return isAllowedToSee && matchSearch && matchCabang
   })
-
-  // Dapatkan opsi Cabang dinamis (Hanya cabang yang BOLEH dia lihat)
   const allowedCabang = Array.from(new Set(
     stores
       .filter(s => {
-        if (!isBMT) return true; // Non-BMT lihat semua cabang
+        if (!isBMT) return true;
         return (s.nama_bmt || '').trim().toLowerCase() === currentUserBmtName.trim().toLowerCase()
       })
       .map(s => s.branch)
@@ -303,18 +277,12 @@ setStores(merged)
     return <FileText size={16} />
   }
 
-  // ==============================
-  // RENDERING UI
-  // ==============================
-
   if (loading) return (
     <div className="flex flex-col items-center justify-center py-24 gap-4">
       <div className="animate-spin w-8 h-8 border-4 border-[#cc1e2c] border-t-transparent rounded-full" />
       <p className="text-sm text-gray-500 font-medium">Memverifikasi profil & memuat toko...</p>
     </div>
   )
-
-  // Pesan error jika user diset sebagai BMT tapi namanya (full_name) tidak ada di tabel profiles
   if (isBMT && !currentUserBmtName) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3 text-center px-4">
@@ -365,7 +333,6 @@ setStores(merged)
         </div>
       )}
 
-      {/* Search & Filter Bar */}
       <div className="flex flex-col md:flex-row gap-4 items-center mb-8">
         <div className="relative w-full md:flex-1">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -379,8 +346,7 @@ setStores(merged)
         </div>
         
         <div className="flex w-full md:w-auto gap-4">
-          
-          {/* Dropdown PIC HANYA TAMPIL JIKA BUKAN BMT (Misal: HO / Admin) */}
+
           {!isBMT && (
             <div className="relative flex-1 md:w-48">
               <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
@@ -397,7 +363,6 @@ setStores(merged)
             </div>
           )}
 
-          {/* Dropdown Filter Cabang */}
           <div className="relative flex-1 md:w-48">
             <SlidersHorizontal className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
             <select 
@@ -414,7 +379,6 @@ setStores(merged)
         </div>
       </div>
 
-      {/* Tabs khusus DPM */}
       {isDpmCategory && (
         <div className="flex gap-6 mb-6 border-b border-gray-200">
           <button 
@@ -438,7 +402,6 @@ setStores(merged)
         <>
           <p className="text-sm text-gray-400 font-medium mb-4">{filteredStores.length} toko ditemukan</p>
 
-          {/* Grid of Store Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredStores.map(store => {
           const doneCount = store.checklist_done_count ?? 0
@@ -450,10 +413,10 @@ setStores(merged)
           
           let isDone = !!store.is_done
           let dateLabel = 'Belum dicek'
-          let canClick = isPeriodOpen  // Locked if period is closed
+          let canClick = isPeriodOpen
           
           if (isDPM) {
-            canClick = isPeriodOpen && store.is_done
+            canClick = isPeriodOpen && !!store.is_done
             isDone = !!store.dpm_submitted_at
             if (store.dpm_submitted_at) {
               dateLabel = new Date(store.dpm_submitted_at).toLocaleDateString('id-ID', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
@@ -498,7 +461,6 @@ setStores(merged)
                 <p className="text-gray-500 text-sm">{store.nama_bmt}</p>
               </div>
 
-              {/* Bottom Pill */}
               <div
                 className={`px-5 py-3 border-t flex items-center justify-between ${
                   cardComplete

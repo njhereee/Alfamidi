@@ -95,8 +95,6 @@ export default function FCPTFormView({ store, onBack }: { store: any, onBack: ()
   const [answers, setAnswers] = useState<Record<string, { status?: string; nilai?: number; keterangan?: string; fotoFile?: File; fotoName?: string; fotoPreview?: string }>>({})
   const [currentStep, setCurrentStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  // ─── Upload 1 foto ke Supabase Storage ─────────────────────────────────────
   const uploadFoto = async (supabase: any, itemId: string, file: File, storeKode: string): Promise<string | null> => {
     const ext = file.name.split('.').pop()
     const path = `fcpt/${storeKode}/${itemId}_${Date.now()}.${ext}`
@@ -105,16 +103,12 @@ export default function FCPTFormView({ store, onBack }: { store: any, onBack: ()
     const { data } = supabase.storage.from('fcpt-photos').getPublicUrl(path)
     return data?.publicUrl ?? null
   }
-
-  // ─── Submit form ke database ────────────────────────────────────────────────
   const handleSubmit = async () => {
     setIsSubmitting(true)
     try {
       const { createClient } = await import('@/frontend/supabase/client')
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-
-      // 1. Buat submission record
       let submitPayload: any = { store_kode: store?.kode, submitted_by: user?.id }
       if (store?.selectedPeriod) {
         const dateOverride = new Date(store.selectedPeriod.year, store.selectedPeriod.month - 1, 15).toISOString()
@@ -130,8 +124,6 @@ export default function FCPTFormView({ store, onBack }: { store: any, onBack: ()
       if (subErr) throw subErr
 
       const submissionId = submission.id
-
-      // 2. Upload foto & simpan detail per item
       const itemInserts = []
       for (const [itemId, answer] of Object.entries(answers)) {
         let fotoUrl: string | null = null
@@ -162,8 +154,6 @@ export default function FCPTFormView({ store, onBack }: { store: any, onBack: ()
       setIsSubmitting(false)
     }
   }
-
-  // ─── Handlers ───────────────────────────────────────────────────────────────
   const handleRadioChange = (itemId: string, value: string) => {
     let defaultNilai = 100
     if (value === 'RUSAK MASIH DAPAT DIGUNAKAN') defaultNilai = 60
@@ -202,7 +192,6 @@ export default function FCPTFormView({ store, onBack }: { store: any, onBack: ()
         </div>
       </div>
 
-      {/* Navigasi Step */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 flex flex-wrap gap-2">
         {formDataTemplate.map((s, idx) => (
           <button
@@ -215,7 +204,6 @@ export default function FCPTFormView({ store, onBack }: { store: any, onBack: ()
         ))}
       </div>
 
-      {/* Konten Segmen Aktif */}
       <motion.div 
         key={currentStep}
         initial={{ opacity: 0, x: 20 }}

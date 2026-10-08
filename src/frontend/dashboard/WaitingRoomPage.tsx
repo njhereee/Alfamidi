@@ -9,7 +9,7 @@ export default function WaitingRoomPage({ nik, role }: { nik: string; role: stri
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col justify-center items-center px-6 relative overflow-hidden">
-      {/* Bg decorations */}
+      
       <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-red-400/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -19,13 +19,12 @@ export default function WaitingRoomPage({ nik, role }: { nik: string; role: stri
         transition={{ duration: 0.5 }}
         className="w-full max-w-md bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl shadow-xl p-8 z-10 text-center"
       >
-        {/* Logo */}
+        
         <div className="flex justify-center items-center mb-8">
           <div className="bg-red-600 text-white font-bold text-2xl w-9 h-9 flex items-center justify-center rounded-sm mr-2 italic">A</div>
           <h1 className="text-[#0c539a] text-3xl font-bold tracking-tight">Alfamid<span className="text-red-600">i</span></h1>
         </div>
 
-        {/* Animated clock icon */}
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
@@ -40,7 +39,6 @@ export default function WaitingRoomPage({ nik, role }: { nik: string; role: stri
           Proses ini biasanya selesai dalam <strong>1×24 jam</strong>.
         </p>
 
-        {/* Info akun */}
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-left mb-6 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-gray-500 font-medium">NIK</span>
@@ -56,7 +54,6 @@ export default function WaitingRoomPage({ nik, role }: { nik: string; role: stri
           </div>
         </div>
 
-        {/* Kontak */}
         <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-left mb-6">
           <div className="flex items-center gap-2 mb-2">
             <Phone size={15} className="text-gray-500" />
@@ -66,7 +63,6 @@ export default function WaitingRoomPage({ nik, role }: { nik: string; role: stri
           <p className="text-gray-400 text-xs mt-0.5">Senin – Jumat, 08.00 – 17.00 WIB</p>
         </div>
 
-        {/* Refresh & Sign out */}
         <div className="flex flex-col gap-3">
           <button
             onClick={() => window.location.reload()}

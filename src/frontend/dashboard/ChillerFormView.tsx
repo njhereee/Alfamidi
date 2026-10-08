@@ -105,7 +105,6 @@ export default function ChillerFormView({
     }))
   }
 
-  // Upload Foto per Sub-Item ke Storage Supabase
   const uploadFoto = async (supabase: any, itemId: string, file: File, storeKode: string): Promise<string | null> => {
     const ext = file.name.split('.').pop()
     const path = `chiller/${storeKode}/${itemId}_${Date.now()}.${ext}`
@@ -117,8 +116,6 @@ export default function ChillerFormView({
     const { data } = supabase.storage.from('chiller_photos').getPublicUrl(path)
     return data?.publicUrl ?? null
   }
-
-  // Submit Ke Supabase
   const handleSubmit = async () => {
     setIsSubmitting(true)
     try {
@@ -143,7 +140,6 @@ export default function ChillerFormView({
         answers
       )
 
-      // 2. Insert ke Tabel Induk (chiller_submissions)
       let submitPayload: any = {
           nik: userNik,
           nama_pic: userNama,
@@ -174,7 +170,6 @@ export default function ChillerFormView({
 
       if (subErr) throw subErr
 
-      // 3. Upload Foto & Insert Details per Item
       const labelById = Object.fromEntries(
         requiredItems.map((i) => [i.id, i.label])
       )
@@ -259,7 +254,6 @@ export default function ChillerFormView({
       animate={{ opacity: 1, y: 0 }}
       className="max-w-4xl mx-auto space-y-6 pb-20 font-sans"
     >
-      {/* HEADER CARD */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8 border-t-8 border-t-[#cc1e2c] relative">
         <button onClick={onBack} className="flex items-center gap-2 text-gray-500 hover:text-[#cc1e2c] text-xs font-bold mb-4 transition-colors">
           <ArrowLeft size={16} /> Kembali
@@ -269,7 +263,6 @@ export default function ChillerFormView({
           Checklist Equipment Pendingin untuk Toko: <span className="font-bold text-gray-800">{store?.nama} ({store?.kode})</span>
         </p>
 
-        {/* IDENTITAS (AUTOMATIC & READ ONLY) */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200 text-xs text-gray-800">
           <div>
             <span className="block text-gray-400 font-bold uppercase">NIK</span>
@@ -290,7 +283,6 @@ export default function ChillerFormView({
         </div>
       </div>
 
-      {/* NAVIGASI STEP TAB */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 flex flex-wrap gap-2">
         {formSteps.map((s, idx) => (
           <button
@@ -312,7 +304,6 @@ export default function ChillerFormView({
         ))}
       </div>
 
-      {/* CONTENT STEP */}
       <motion.div 
         key={currentStep}
         initial={{ opacity: 0, x: 20 }}
@@ -324,7 +315,6 @@ export default function ChillerFormView({
           <h3 className="font-bold text-lg text-gray-800">{section.category}</h3>
         </div>
 
-        {/* STEP 1: INPUT SPESIFIKASI MESIN */}
         {section.isSpecsStep ? (
           <div className="p-6 space-y-4">
             <div className="space-y-1">
@@ -435,7 +425,6 @@ export default function ChillerFormView({
           </div>
         ) : (
 
-          /* CHECKLIST ITEM PER CATEGORY */
           <div className="divide-y divide-gray-100">
             {section.items?.map((item) => {
               const currentAnswer = answers[item.id] || {}
@@ -473,7 +462,6 @@ export default function ChillerFormView({
                     ))}
                   </div>
 
-                  {/* KETERANGAN & UPLOAD FOTO PER ITEM */}
                   <div className="space-y-4 pt-2 border-t border-gray-100 mt-2">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Keterangan Detail</label>
@@ -515,7 +503,6 @@ export default function ChillerFormView({
         )}
       </motion.div>
 
-      {/* FOOTER BUTTONS */}
       <div className="flex justify-between items-center gap-4 mt-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
         <button 
           onClick={() => setCurrentStep(Math.max(0, currentStep - 1))} 

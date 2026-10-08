@@ -55,16 +55,13 @@ interface BMTRekapViewProps {
 }
 
 export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDetail, defaultRecapType }: BMTRekapViewProps) {
-  // Filter States
   const [recapType, setRecapType] = useState<RecapType>(defaultRecapType || 'fcpt')
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [filterTanggal, setFilterTanggal] = useState('')
   const [filterKodeToko, setFilterKodeToko] = useState('')
-  const [filterStatus, setFilterStatus] = useState('all') // 'all' | 'done' | 'pending'
+  const [filterStatus, setFilterStatus] = useState('all')
   const [selectedItem, setSelectedItem] = useState<any>(null)
-
-  // Data States
   const [storeBases, setStoreBases] = useState<StoreBase[]>([])
   const [fcptByKode, setFcptByKode] = useState<Record<string, { submitted_at: string; nilai_akhir: number; jml_terceklist: number }>>({})
   const [chillerByKode, setChillerByKode] = useState<
@@ -116,21 +113,16 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
       }
     })
   }, [storeBases, fcptByKode, chillerByKode, gensetByKode, recapType])
-
-  // Fetch Data khusus Toko milik BMT
   useEffect(() => {
     const fetchBMTData = async () => {
       try {
         setLoading(true)
         const { createClient } = await import('@/frontend/supabase/client')
         const supabase = createClient()
-
-        // 1. Identifikasi User BMT
         const { data: { user } } = await supabase.auth.getUser()
         const userNik = nik || user?.user_metadata?.nik || ''
         const userName = metadata?.full_name || user?.user_metadata?.full_name || ''
 
-        // 2. Query stores
         let storeQuery = supabase
           .from('stores')
           .select('id, kode, nama, branch, nama_bmt, nik_bmt')
@@ -165,8 +157,6 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
         }
 
         const storeCodes = (storesData || []).map(s => s.kode).filter(Boolean)
-
-        // Jika BMT belum memiliki toko yang ditugaskan
         const bases: StoreBase[] = (storesData || []).map((store) => ({
           id: store.id,
           kodeToko: store.kode,
@@ -269,8 +259,6 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
 
     fetchBMTData()
   }, [nik, metadata, selectedMonth, selectedYear])
-
-  // Filter Lokal berdasarkan Tanggal, Kode Toko, dan Status Inspection
   const filteredData = useMemo(() => {
     return rawStoresData.filter(item => {
       const matchKode = filterKodeToko === '' || item.kodeToko.toLowerCase().includes(filterKodeToko.toLowerCase())
@@ -286,12 +274,8 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
       return matchKode && matchDate && matchStatus
     })
   }, [rawStoresData, filterKodeToko, filterTanggal, filterStatus])
-
-  // KPI
   const kpiTerceklist = filteredData.filter(d => d.isDone).length
   const totalTokoPegangan = filteredData.length
-
-  // Bar Chart Data
   const barChartData = useMemo(() => {
     const stats: Record<string, { name: string, terceklist: number, belumTerceklist: number }> = {}
     
@@ -305,8 +289,6 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
 
     return Object.values(stats)
   }, [filteredData])
-
-  // Pie Chart Data
   const pieChartData = useMemo(() => {
     if (totalTokoPegangan === 0) return []
     
@@ -318,8 +300,6 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
       { name: 'Belum Dicek', value: percentagePending, fill: '#cc1e2c' }
     ].filter(item => item.value > 0)
   }, [kpiTerceklist, totalTokoPegangan])
-
-  // Handler Kirim Detail dengan Status recapType & filterType
   const handleSelectDetail = (item: StoreData) => {
     const currentFilterType = FILTER_TYPE_MAP[recapType] || 'FCPT'
     const itemWithRecap = {
@@ -412,11 +392,9 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          
-          {/* FILTER BAR BARU */}
+
           <div className="lg:col-span-1 space-y-4">
-            
-            {/* 1. Filter Tanggal */}
+
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Rentang Tanggal</label>
               <div className="relative">
@@ -429,8 +407,7 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
                 />
               </div>
             </div>
-            
-            {/* 2. Filter Status Checklist */}
+
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Status Inspection</label>
               <div className="relative">
@@ -447,7 +424,6 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
               </div>
             </div>
 
-            {/* 3. Filter Kode Toko */}
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Cari Kode Toko</label>
               <div className="relative">
@@ -463,7 +439,6 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
             </div>
           </div>
 
-          {/* KPI Card */}
           <div className="lg:col-span-1 flex flex-col justify-center">
             <div className="bg-gradient-to-br from-[#0c539a] to-blue-800 rounded-2xl p-6 text-white shadow-md text-center h-full flex flex-col justify-center transform transition hover:scale-105">
               <p className="text-blue-200 font-semibold mb-1 text-sm">Sudah Terceklist</p>
@@ -472,7 +447,6 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
             </div>
           </div>
 
-          {/* Donut Chart */}
           <div className="lg:col-span-2 flex justify-center items-center bg-gray-50 rounded-2xl border border-gray-100 p-4">
             <div className="w-full h-[300px]">
               {pieChartData.length > 0 ? (
@@ -507,7 +481,6 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
         </div>
       </div>
 
-      {/* Tabel Toko Pegangan BMT */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
           <h3 className="font-bold text-gray-800 text-sm">Daftar Toko BMT ({filteredData.length})</h3>
@@ -571,7 +544,6 @@ export default function BMTRekapView({ nik, metadata, onSelectDetail, onViewDeta
         </div>
       </div>
 
-      {/* Bar Chart Status Per Cabang */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <h3 className="font-bold text-gray-800 mb-6 text-sm">
           Status Inspeksi Toko Pegangan
